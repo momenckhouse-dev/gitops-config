@@ -8,15 +8,17 @@ on:
         required: false
         type: string
 
+# The PR is pushed with the GitHub App bot's token: PRs opened with GITHUB_TOKEN do not trigger the
+# required validate/ops-tooling checks, so they could never merge.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   promote:
     runs-on: ubuntu-24.04
     # Required reviewers on this environment = approval #1 (may this release be proposed?).
-    # CODEOWNERS on environments/production/** = approval #2 (merge the exact diff).
+    # The bot-authored PR is merged by hand = approval #2 (the exact diff). With more than one
+    # maintainer, also require a CODEOWNERS review on main so #2 is enforced, not just practised.
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -37,8 +39,16 @@ jobs:
         working-directory: environments/production
         run: kustomize edit set image "secure-event-api=${{ steps.img.outputs.name }}:${{ steps.img.outputs.tag }}"
 
+      - name: Mint short-lived bot token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GITOPS_BOT_APP_ID }}
+          private-key: ${{ secrets.GITOPS_BOT_PRIVATE_KEY }}
+
       - uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ steps.app-token.outputs.token }}
           branch: promote/production-${{ steps.img.outputs.tag }}
           commit-message: "production: promote secure-event-api ${{ steps.img.outputs.tag }}"
           title: "production: promote secure-event-api ${{ steps.img.outputs.tag }}"
@@ -46,6 +56,7 @@ jobs:
           body: |
             Promotes `${{ steps.img.outputs.tag }}` (currently healthy in staging) to production.
 
-            Requested by @${{ github.actor }}. Merging requires a CODEOWNERS approval.
+            Requested by @${{ github.actor }} and approved through the `production` environment gate.
+            Review the diff (only the image tag should change), then merge by hand: no auto-merge for production.
             After merge Argo CD syncs `secure-event-api-production` automatically.
             Rollback = `git revert` of this PR's merge commit.
