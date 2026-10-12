@@ -2,12 +2,29 @@
 
 An end-to-end platform-engineering project: Terraform builds a multi-AZ EKS foundation, Argo CD
 delivers everything from Git, Crossplane exposes a self-service `SecureService` API with security
-guardrails, GitHub Actions ships scanned and SBOM-documented images through OIDC (no stored AWS keys),
-and Prometheus/Grafana plus a Python `platform-doctor` tool support a documented incident exercise
-that ends in a Git-based rollback and a formal RCA.
+guardrails, GitHub Actions ships scanned and SBOM-documented images through OIDC (no AWS access keys
+in CI), and Prometheus/Grafana plus a Python `platform-doctor` tool support an incident exercise that
+ends in a Git-based rollback and an RCA.
 
-> Built as a portfolio project targeting senior DevOps / platform roles (e.g. Check Point's DevOps
-> Engineer position: AWS, Kubernetes, GitOps, IaC, CI/CD security, observability, Python).
+> A personal portfolio project covering Cloud, DevOps and SRE work (AWS, Kubernetes, GitOps, IaC,
+> CI/CD security, observability, Python). It runs in my own AWS account; the incident below was a
+> planned exercise in staging, not a customer-facing outage.
+
+### Status: built, deployed and exercised (October 2026)
+
+The platform was built and run live in AWS `eu-central-1` (EKS 1.33, 3 × m7i-flex.large), not just
+validated offline. What actually happened, with evidence:
+
+| What | Evidence |
+|---|---|
+| CI → ECR → GitOps PR → Argo CD, end to end | app-source [PR #1](https://github.com/momenckhouse-dev/app-source/pull/1) → bot [PR #9](https://github.com/momenckhouse-dev/gitops-config/pull/9) deployed `ef872a3e3dde` to staging |
+| Approval-gated production promotion | `promote.yml` paused at the `production` environment gate, approved, bot [PR #10](https://github.com/momenckhouse-dev/gitops-config/pull/10) merged by hand; 3 production pods rolled out |
+| Crossplane provisioning | `SecureService` claims created real S3 buckets and IRSA roles for staging and production; the app archived events to them |
+| Incident exercise and recovery | defective release [PR #5](https://github.com/momenckhouse-dev/gitops-config/pull/5), alerts fired, rollback [PR #6](https://github.com/momenckhouse-dev/gitops-config/pull/6) via `git revert`; [RCA INC-2026-001](ops/incidents/INC-2026-001-secure-event-api-oom.md) with measured timeline and impact |
+| Fixes found by running it | sync-wave deadlock ([PR #3](https://github.com/momenckhouse-dev/gitops-config/pull/3)), false EKS control-plane alerts ([PR #4](https://github.com/momenckhouse-dev/gitops-config/pull/4)), capacity alerts and dashboard fix from the RCA ([PR #7](https://github.com/momenckhouse-dev/gitops-config/pull/7)), bot-authored promotion PRs ([PR #8](https://github.com/momenckhouse-dev/gitops-config/pull/8)) |
+
+The setup guide in section 4 is kept for anyone who wants to build it themselves. The lab is torn
+down after the demo to save cost, so the links above are the lasting evidence.
 
 ---
 
@@ -37,7 +54,7 @@ flowchart LR
   ci -->|PR: bump image tag| cfg[gitops-config repo]
   lead([Platform lead]) -->|approve prod PR| cfg
 
-  subgraph AWS["AWS account (eu-west-1)"]
+  subgraph AWS["AWS account (eu-central-1)"]
     subgraph VPC["VPC 10.40.0.0/16, 3 AZs"]
       subgraph EKS["EKS cluster"]
         argo[Argo CD]
@@ -115,7 +132,7 @@ carry the permissions boundary, and only touch `cp-secureservice-*` buckets.
 ### 1.4 Network layout
 
 ```
-VPC 10.40.0.0/16                      eu-west-1a        eu-west-1b        eu-west-1c
+VPC 10.40.0.0/16                      eu-central-1a     eu-central-1b     eu-central-1c
   public  /24  (ALB, NAT GW)          10.40.48.0/24     10.40.49.0/24     10.40.50.0/24
   private /20  (nodes, pods)          10.40.0.0/20      10.40.16.0/20     10.40.32.0/20
   intra   /24  (EKS control-plane ENIs) 10.40.52.0/24   10.40.53.0/24     10.40.54.0/24
@@ -141,7 +158,7 @@ The split between application source and deployment config is deliberate (see se
 ```
 app-source/                 # repo 1: application code + CI
   src/secure_event_api/       Flask API, Prometheus metrics, S3 archiver, fault-injection hook
-  tests/                      16 unit tests
+  tests/                      24 unit tests
   Dockerfile                  multi-stage, non-root uid 10001, gunicorn
   .github/workflows/ci.yml    test → lint → build → Trivy → SBOM → ECR (OIDC) → GitOps PR
 
@@ -160,7 +177,7 @@ gitops-config/              # repo 2: desired state of the cluster
   ops/incidents/              INC-2026-001 RCA + template
   scripts/                    run_local_checks.ps1 + validate_repo.py (check all three repos locally)
   .github/workflows/          validate.yml (every PR, incl. ops tests), promote.yml (approval-gated)
-  .github/CODEOWNERS          production/** needs platform-leads
+  .github/CODEOWNERS          owners for production/**, platform/** and argocd/**
 
 infra/                      # repo 3: Terraform foundation
   terraform/                  VPC, EKS, ECR, GitHub OIDC roles, Crossplane IRSA + boundary
@@ -172,15 +189,17 @@ infra/                      # repo 3: Terraform foundation
 
 ## 3. What has been verified
 
+### 3.1 Offline checks
+
 From the workspace folder, run `.\gitops-config\scripts\run_local_checks.ps1` (Windows) to repeat all of
-this. Status as built:
+this. Re-run on 2026-10-12:
 
 | Check | Result |
 |---|---|
-| App unit tests (pytest) | **16/16 pass** |
+| App unit tests (pytest) | **24/24 pass** |
 | platform-doctor tests | **17/17 pass** |
 | ruff lint + format (app and ops) | clean |
-| Repo static validation | 38 YAML, 19 JSON, 4 kustomizations, 10 Argo CD apps, 4 workflows: OK |
+| Repo static validation | 39 YAML, 19 JSON, 4 kustomizations, 10 Argo CD apps, 4 workflows: OK |
 | `helm lint --strict` | pass |
 | `kustomize build --enable-helm` staging / production / monitoring | renders 9 resource kinds per env; image, namespace, patches verified |
 | `terraform fmt -check` + `terraform validate` (AWS provider 5.x, EKS module 20.37, VPC 5.21) | **valid** |
@@ -188,9 +207,21 @@ this. Status as built:
 | Git rollback rehearsal | inject bad release → commit → render shows bad tag + fault → `git revert` → render shows good tag |
 | platform-doctor exit codes | healthy fixture → 0, incident fixture → 2 |
 
-**Not verifiable without AWS/GitHub** (do these in Phase 4): GitHub Actions runs, the Crossplane
-Composition against real providers (`crossplane render` can pre-check it locally with Docker),
-Argo CD sync behaviour, alert firing in a live Prometheus.
+### 3.2 Live checks on AWS (2026-10-12)
+
+| Check | Result |
+|---|---|
+| GitHub Actions (app CI, gitops validate, promote) | green on `main`; OIDC role assumed, image scanned and pushed to ECR, bot PRs opened |
+| Terraform | applied from a workstation with an IAM user's access keys; CI runs fmt, validate, tflint and Trivy IaC. The OIDC plan/apply jobs are wired but not enabled yet |
+| Argo CD | 10 apps Synced/Healthy; staging auto-deploys; production promoted through the approval gate |
+| Crossplane | both `SecureService` claims Ready: real S3 buckets and IRSA roles; events archived without stored credentials |
+| Prometheus alerting | `ContainerOOMKilled` and `SecureEventApiRestarting` fired 2.5 min after the defective rollout and resolved after the revert |
+| End-to-end requests | staging and production: `201` responses, objects present in each environment's archive bucket |
+
+Running it live found real problems that offline checks could not: an Argo CD sync-wave deadlock,
+AppProjects created after their Applications, false control-plane alerts on EKS, a 5xx alert that
+is blind to crash loops, and a promotion workflow whose PRs could never pass required checks. Each
+fix is linked in the status table at the top.
 
 ---
 
@@ -201,24 +232,24 @@ Argo CD sync behaviour, alert firing in a live Prometheus.
 - AWS account with admin access for the first apply; AWS CLI v2.
 - GitHub organisation (or user) and three repos: `app-source`, `gitops-config`, `infra`.
 - Tools: Terraform ≥ 1.6, kubectl, Helm 3, kustomize 5, Argo CD CLI, `gh`, Docker, Python 3.11+.
-- Replace placeholders everywhere:
+- The repos contain the values of my deployment. To build your own, replace them everywhere:
 
-  | Placeholder | Replace with |
+  | Value in the repos | Replace with |
   |---|---|
   | `momenckhouse-dev` | your GitHub org/user |
-  | `111122223333` | your AWS account ID |
-  | `eu-west-1` | your region (if different) |
-  | `EXAMPLED539D4633E53DE1B71EXAMPLE` | written for you by Terraform output in Phase 3 |
+  | `071975552383` | your AWS account ID |
+  | `eu-central-1` | your region (if different) |
+  | the EKS OIDC provider ID in `environment-config.yaml` | written for you by Terraform output in Phase 3 |
 
   ```bash
-  grep -rl "momenckhouse-dev\|111122223333" --exclude-dir=.venv .
+  grep -rl "momenckhouse-dev\|071975552383\|eu-central-1" --exclude-dir=.venv .
   ```
 
 ### Phase 1: Terraform state and foundation (from your laptop, once)
 
 ```bash
-aws s3api create-bucket --bucket <tfstate-bucket> --region eu-west-1 \
-  --create-bucket-configuration LocationConstraint=eu-west-1
+aws s3api create-bucket --bucket <tfstate-bucket> --region eu-central-1 \
+  --create-bucket-configuration LocationConstraint=eu-central-1
 aws s3api put-bucket-versioning --bucket <tfstate-bucket> --versioning-configuration Status=Enabled
 
 cd infra/terraform
@@ -329,8 +360,8 @@ aws s3 ls s3://cp-secureservice-secure-event-api-staging-events-archive/events/ 
 ### Phase 7: Promote to production (manual approval)
 
 GitHub → gitops-config → Actions → **promote-to-production** → Run. A reviewer approves the
-`production` environment, the workflow opens a PR pinning the staging tag in the production overlay,
-a CODEOWNER (`platform-leads`) approves the rendered diff, merge. Argo CD rolls it out.
+`production` environment, then the workflow (as the GitHub App bot) opens a PR pinning the staging tag in
+the production overlay. A human reviews the rendered diff and merges it by hand. Argo CD rolls it out.
 
 **Drift repair demo:** `kubectl -n secure-event-api-production scale deploy secure-event-api --replicas=1`
 and watch Argo CD restore it within seconds (`selfHeal`).
@@ -345,11 +376,11 @@ See [section 6](#6-incident-exercise).
 
 | Decision | Why |
 |---|---|
-| **Approval lives in Git, not in Argo CD manual sync** | Manual sync in Argo CD would turn off selfHeal, so production drift would no longer be repaired. Instead production keeps auto-sync + selfHeal and the human gates are the `production` environment approval plus CODEOWNERS review of the rendered diff. Every change to production has a reviewed commit. |
+| **Approval lives in Git, not in Argo CD** | The approval should produce a reviewed, auditable record of exactly what changed. Gating production in Git (the `production` environment approval, then a hand-merged PR) means every production change is a reviewed commit, Git stays the single source of truth, and rollback is `git revert`. Production keeps automated sync with selfHeal, so drift is still repaired. |
 | **Separate app and config repos** | CI writes to config only through PRs from a GitHub App; app developers can't change production directly; config history = deployment history; rollback = `git revert`. |
 | **Helm chart + Kustomize overlays** | Helm packages the app once with sane secure defaults; overlays hold only environment deltas (and the image pin), so a production diff is small and reviewable. |
 | **Scan before push** | The image is built and loaded locally, scanned, and only pushed if it passes, so ECR never holds an unscanned tag. ECR tags are `IMMUTABLE`, so a tag always means the same bytes. |
-| **OIDC everywhere** | CI and Terraform get short-lived STS credentials pinned to `repo:org/name:ref` or `:environment`. Pods get AWS access through IRSA. No long-lived secrets exist. |
+| **OIDC instead of AWS keys** | No stored long-lived AWS access keys in CI or in the cluster: GitHub Actions gets short-lived STS credentials through OIDC, pinned to repo, branch or environment, and pods use IRSA. GitHub automation uses a GitHub App, whose private key (stored as a secret, scoped to the `production` environment for promotions) mints 1-hour installation tokens. The workstation that runs Terraform uses an IAM user; moving applies to the OIDC CI role is a follow-up. |
 | **Permissions boundary on Crossplane-created roles** | Self-service IAM is the riskiest part of a platform API. The Crossplane role cannot create a role without the boundary, cannot remove it, and the boundary only allows object access to `cp-secureservice-*`. |
 | **Production `prune: false`** | A bad commit that deletes manifests won't delete production resources; pruning is a deliberate action. |
 | **One gunicorn worker per pod** | Prometheus client counters live per process; scale horizontally with replicas/HPA instead. |
@@ -384,9 +415,11 @@ python gitops-config/ops/platform-doctor/platform_doctor.py --fixture gitops-con
 
 ## 7. Cost and teardown
 
-Rough lab cost in eu-west-1 with `single_nat_gateway = true` and 3 × t3.large: EKS control plane
-~$0.10/h, nodes ~$0.28/h, NAT ~$0.05/h plus data, about **$10-12/day**. Production-style settings
-(NAT per AZ, m6i.large) roughly double that. Build it, record the demo, tear it down.
+Rough lab cost as run (eu-central-1, `single_nat_gateway = true`, 3 × m7i-flex.large): EKS control
+plane ~$0.10/h, nodes ~$0.30/h, NAT ~$0.05/h plus data, about **$10-12/day**. Production-style settings
+(NAT per AZ, larger nodes) roughly double that. On the AWS Free plan only free-tier-eligible instance
+types launch (t3.large was rejected), which is why the lab uses m7i-flex.large. Build it, record the
+demo, tear it down.
 
 ```bash
 kubectl -n argocd delete application root      # cascades: workloads, then SecureService claims
@@ -415,8 +448,8 @@ cd infra/terraform && terraform destroy
   versioned, TLS-only, lifecycle-managed **S3** archives plus a scoped IRSA role through one YAML claim,
   enforcing guardrails through schema validation and an **IAM permissions boundary**.
 - **Implemented GitOps continuous delivery** with **Argo CD** (app-of-apps, sync waves, AppProjects),
-  a custom **Helm** chart and **Kustomize** overlays; staging auto-deploys, production requires
-  environment + CODEOWNERS approval, and **selfHeal** repairs drift automatically.
+  a custom **Helm** chart and **Kustomize** overlays; staging auto-deploys, production requires an
+  environment approval and a hand-merged PR, and **selfHeal** repairs drift automatically.
 - **Secured the CI pipeline** in **GitHub Actions**: unit tests, ruff/hadolint/helm lint/kubeconform/tflint,
   **Trivy** vulnerability gate before push, **CycloneDX SBOM**, immutable image tags, and bot-authored GitOps PRs.
 - **Built observability and tooling**: kube-prometheus-stack with SLO recording rules and alerts for error
@@ -431,7 +464,7 @@ cd infra/terraform && terraform destroy
 
 "I'm an AWS cloud engineer moving into platform engineering. To show that end to end, I built a GitOps
 platform on EKS. Terraform builds the network, cluster and IAM, and CI authenticates with OIDC, so there are no
-access keys. Developers get a Crossplane API where one YAML file gives them an encrypted S3 archive
+AWS access keys in the pipeline. Developers get a Crossplane API where one YAML file gives them an encrypted S3 archive
 and a scoped IAM role, and they can't turn the guardrails off. Every deployment is a pull request:
 images are scanned and get an SBOM before they reach ECR, Argo CD deploys staging automatically, and production
 needs an approval. Then I broke it on purpose: I shipped a memory-leaking release, caught it from
@@ -451,12 +484,15 @@ Prometheus alerts, diagnosed it from Kubernetes events, rolled back with a git r
 Be upfront that this was a **staged exercise** in your own lab. Interviewers value a well-run
 simulation, and claiming it was real production is easy to catch.
 
-### Mapping to typical senior DevOps requirements
+### Mapping to typical Cloud / DevOps / SRE job requirements
+
+This is one lab project, not a substitute for years of production experience. It shows hands-on
+practice with each area:
 
 | Requirement | Where it shows |
 |---|---|
 | AWS (VPC, IAM, EKS, ECR, S3) | `infra/terraform/*`, Crossplane Composition |
-| Infrastructure as Code | Terraform with CI plan/apply, Crossplane |
+| Infrastructure as Code | Terraform (CI lint/scan; OIDC plan/apply jobs ready), Crossplane |
 | Kubernetes in production | Helm chart (HPA, PDB, NetworkPolicy, PSS restricted, topology spread) |
 | CI/CD and GitOps | `ci.yml`, `validate.yml`, `promote.yml`, Argo CD app-of-apps |
 | Security / DevSecOps | OIDC, IRSA, permissions boundary, Trivy, SBOM, immutable tags, TLS-only buckets |
@@ -465,7 +501,7 @@ simulation, and claiming it was real production is easy to catch.
 
 ### Interview talking points to prepare
 
-- Why production approval is a Git merge and not an Argo CD manual sync (selfHeal trade-off).
+- Why production approval is a Git merge rather than an Argo CD manual sync (an auditable, reviewed record in Git).
 - How the OIDC trust policy's `sub` condition stops other repos or branches from assuming the CI role.
 - Why the Crossplane role can only create roles that carry the boundary (privilege-escalation path).
 - Why the defect passed readiness probes, and what Argo Rollouts canary analysis would add.
