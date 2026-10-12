@@ -1,0 +1,76 @@
+replicaCount: 2
+
+image:
+  # Kustomize overlays replace this name/tag with the ECR image pinned by CI.
+  repository: secure-event-api
+  tag: ""
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: secure-event-api
+  # eks.amazonaws.com/role-arn is set per environment (role is created by the SecureService claim).
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+config:
+  logLevel: INFO
+  # Incident-simulation hook only: none | errors | latency | memory_leak
+  faultMode: none
+
+archive:
+  # Connection secret written by the SecureService claim (key: bucket).
+  secretName: secure-event-api-archive
+  prefix: events
+
+secureService:
+  enabled: true
+  claimName: events-archive
+  dataClassification: confidential
+  retentionDays: 365
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+
+networkPolicy:
+  enabled: true
+  monitoringNamespace: monitoring
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []

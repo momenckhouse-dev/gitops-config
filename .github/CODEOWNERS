@@ -1,0 +1,5 @@
+# Branch protection on main: require PR, 1 CODEOWNERS approval, the "validate" check, linear history.
+*                         @momenckhouse-dev
+/environments/production/ @momenckhouse-dev
+/platform/                @momenckhouse-dev
+/argocd/                  @momenckhouse-dev

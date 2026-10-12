@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "secure-event-api-6d5f7c9b8-k1m2n.pulled",
+        "creationTimestamp": "2026-10-08T13:12:00Z"
+      },
+      "involvedObject": {
+        "kind": "Pod",
+        "name": "secure-event-api-6d5f7c9b8-k1m2n",
+        "namespace": "secure-event-api-production"
+      },
+      "type": "Normal",
+      "reason": "Pulled",
+      "message": "Container image \"111122223333.dkr.ecr.eu-west-1.amazonaws.com/secure-event-api:3f9c2a1b7d4e\" already present",
+      "count": 1,
+      "lastTimestamp": "2026-10-08T13:12:00Z"
+    }
+  ]
+}

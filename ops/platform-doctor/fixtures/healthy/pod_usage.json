@@ -1,0 +1,32 @@
+[
+  {
+    "namespace": "secure-event-api-production",
+    "pod": "secure-event-api-6d5f7c9b8-k1m2n",
+    "cpu": "42m",
+    "memory": "118Mi"
+  },
+  {
+    "namespace": "secure-event-api-production",
+    "pod": "secure-event-api-6d5f7c9b8-p3q4r",
+    "cpu": "39m",
+    "memory": "121Mi"
+  },
+  {
+    "namespace": "secure-event-api-production",
+    "pod": "secure-event-api-6d5f7c9b8-s5t6u",
+    "cpu": "45m",
+    "memory": "116Mi"
+  },
+  {
+    "namespace": "monitoring",
+    "pod": "prometheus-kube-prometheus-stack-prometheus-0",
+    "cpu": "180m",
+    "memory": "1100Mi"
+  },
+  {
+    "namespace": "argocd",
+    "pod": "argocd-application-controller-0",
+    "cpu": "60m",
+    "memory": "310Mi"
+  }
+]

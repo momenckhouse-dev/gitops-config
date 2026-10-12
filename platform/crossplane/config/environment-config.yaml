@@ -1,0 +1,13 @@
+# Generated from Terraform: terraform output -raw crossplane_environment_config > this file
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: platform-aws-settings
+data:
+  accountId: "111122223333"
+  region: eu-west-1
+  oidcProvider: oidc.eks.eu-west-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE
+  oidcProviderArn: arn:aws:iam::111122223333:oidc-provider/oidc.eks.eu-west-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE
+  boundaryPolicyArn: arn:aws:iam::111122223333:policy/secure-platform-secureservice-boundary
+  crossplaneRoleArn: arn:aws:iam::111122223333:role/secure-platform-crossplane-aws
+  bucketPrefix: cp-secureservice-

@@ -1,0 +1,59 @@
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": {
+          "alertname": "Watchdog",
+          "severity": "none"
+        },
+        "annotations": {},
+        "state": "firing"
+      },
+      {
+        "labels": {
+          "alertname": "SecureEventApiHighErrorRate",
+          "severity": "critical",
+          "namespace": "secure-event-api-production"
+        },
+        "annotations": {
+          "summary": "secure-event-api in secure-event-api-production is failing 31.4% of requests"
+        },
+        "state": "firing"
+      },
+      {
+        "labels": {
+          "alertname": "SecureEventApiRestarting",
+          "severity": "critical",
+          "namespace": "secure-event-api-production"
+        },
+        "annotations": {
+          "summary": "secure-event-api containers in secure-event-api-production restarted 13 times in 10m"
+        },
+        "state": "firing"
+      },
+      {
+        "labels": {
+          "alertname": "ArgoCDAppDegraded",
+          "severity": "critical",
+          "namespace": "argocd"
+        },
+        "annotations": {
+          "summary": "Argo CD application secure-event-api-production is Degraded"
+        },
+        "state": "firing"
+      },
+      {
+        "labels": {
+          "alertname": "PodMemoryNearLimit",
+          "severity": "warning",
+          "namespace": "secure-event-api-production"
+        },
+        "annotations": {
+          "summary": "secure-event-api-production/secure-event-api-7f8e6d5c4-g5h6i (secure-event-api) is above 90% of its memory limit"
+        },
+        "state": "firing"
+      }
+    ]
+  }
+}

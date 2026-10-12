@@ -1,0 +1,51 @@
+name: promote-to-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to promote (blank = whatever staging runs now)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    # Required reviewers on this environment = approval #1 (may this release be proposed?).
+    # CODEOWNERS on environments/production/** = approval #2 (merge the exact diff).
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Resolve image from staging
+        id: img
+        run: |
+          NAME=$(yq '.images[] | select(.name == "secure-event-api") | .newName' environments/staging/kustomization.yaml)
+          TAG="${{ inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG=$(yq '.images[] | select(.name == "secure-event-api") | .newTag' environments/staging/kustomization.yaml)
+          fi
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Pin image in production overlay
+        working-directory: environments/production
+        run: kustomize edit set image "secure-event-api=${{ steps.img.outputs.name }}:${{ steps.img.outputs.tag }}"
+
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: promote/production-${{ steps.img.outputs.tag }}
+          commit-message: "production: promote secure-event-api ${{ steps.img.outputs.tag }}"
+          title: "production: promote secure-event-api ${{ steps.img.outputs.tag }}"
+          labels: release, production
+          body: |
+            Promotes `${{ steps.img.outputs.tag }}` (currently healthy in staging) to production.
+
+            Requested by @${{ github.actor }}. Merging requires a CODEOWNERS approval.
+            After merge Argo CD syncs `secure-event-api-production` automatically.
+            Rollback = `git revert` of this PR's merge commit.

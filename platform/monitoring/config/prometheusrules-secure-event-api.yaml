@@ -1,0 +1,53 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: secure-event-api-slo
+spec:
+  groups:
+    - name: secure-event-api
+      rules:
+        - record: secure_event_api:http_error_ratio:rate5m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{job="secure-event-api", status=~"5.."}[5m]))
+              /
+            sum by (namespace) (rate(http_requests_total{job="secure-event-api"}[5m]))
+
+        - record: secure_event_api:http_latency_p95:rate5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, le) (rate(http_request_duration_seconds_bucket{job="secure-event-api"}[5m])))
+
+        - alert: SecureEventApiHighErrorRate
+          expr: secure_event_api:http_error_ratio:rate5m > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "secure-event-api in {{ $labels.namespace }} is failing {{ $value | humanizePercentage }} of requests"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/high-error-rate.md
+
+        - alert: SecureEventApiHighLatency
+          expr: secure_event_api:http_latency_p95:rate5m > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "secure-event-api p95 latency in {{ $labels.namespace }} is {{ $value | humanizeDuration }}"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/high-error-rate.md
+
+        - alert: SecureEventApiRestarting
+          expr: sum by (namespace) (increase(kube_pod_container_status_restarts_total{container="secure-event-api"}[10m])) > 2
+          labels:
+            severity: critical
+          annotations:
+            summary: "secure-event-api containers in {{ $labels.namespace }} restarted {{ $value }} times in 10m"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/pod-crashloop-oom.md
+
+        - alert: SecureEventApiArchiveFailures
+          expr: sum by (namespace) (rate(events_archive_failures_total{job="secure-event-api"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "secure-event-api in {{ $labels.namespace }} cannot write to its S3 archive"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/high-error-rate.md

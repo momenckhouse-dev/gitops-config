@@ -1,0 +1,188 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "root",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "argocd",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "cluster-baseline",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "crossplane",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "1.20.0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "crossplane-providers",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "crossplane-platform-api",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "kube-prometheus-stack",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "65.1.1"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "monitoring-config",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": []
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "secure-event-api-staging",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Healthy"
+        },
+        "summary": {
+          "images": [
+            "111122223333.dkr.ecr.eu-west-1.amazonaws.com/secure-event-api:3f9c2a1b7d4e"
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "secure-event-api-production",
+        "namespace": "argocd"
+      },
+      "status": {
+        "sync": {
+          "status": "Synced",
+          "revision": "c7d21f0"
+        },
+        "health": {
+          "status": "Degraded"
+        },
+        "summary": {
+          "images": [
+            "111122223333.dkr.ecr.eu-west-1.amazonaws.com/secure-event-api:9e41c07a2b55"
+          ]
+        }
+      }
+    }
+  ]
+}

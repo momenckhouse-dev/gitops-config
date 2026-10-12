@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": {
+          "alertname": "Watchdog",
+          "severity": "none"
+        },
+        "annotations": {},
+        "state": "firing"
+      }
+    ]
+  }
+}

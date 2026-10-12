@@ -1,0 +1,64 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xsecureservices.platform.example.io
+spec:
+  group: platform.example.io
+  names:
+    kind: XSecureService
+    plural: xsecureservices
+  claimNames:
+    kind: SecureService
+    plural: secureservices
+  defaultCompositionRef:
+    name: secureservice-s3-archive
+  connectionSecretKeys:
+    - bucket
+    - region
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: BUCKET
+          type: string
+          jsonPath: .status.bucketName
+        - name: CLASSIFICATION
+          type: string
+          jsonPath: .spec.parameters.dataClassification
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [parameters]
+              properties:
+                parameters:
+                  type: object
+                  description: The only knobs developers get. Everything else is a platform guardrail.
+                  required: [serviceAccountName]
+                  properties:
+                    dataClassification:
+                      type: string
+                      description: Drives the encryption mode of the archive.
+                      enum: [internal, confidential, restricted]
+                      default: confidential
+                    retentionDays:
+                      type: integer
+                      description: Objects expire after this many days (transition to Glacier IR after 30).
+                      minimum: 90
+                      maximum: 2555
+                      default: 365
+                    serviceAccountName:
+                      type: string
+                      description: Kubernetes ServiceAccount (in the claim namespace) allowed to write to the archive.
+                      pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                      maxLength: 63
+            status:
+              type: object
+              properties:
+                bucketName:
+                  type: string
+                roleArn:
+                  type: string

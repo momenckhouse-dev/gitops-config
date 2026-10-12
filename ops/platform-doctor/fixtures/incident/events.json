@@ -1,0 +1,89 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "secure-event-api-7f8e6d5c4-a1b2c.backoff",
+        "creationTimestamp": "2026-10-08T14:21:40Z"
+      },
+      "involvedObject": {
+        "kind": "Pod",
+        "name": "secure-event-api-7f8e6d5c4-a1b2c",
+        "namespace": "secure-event-api-production"
+      },
+      "type": "Warning",
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container secure-event-api in pod secure-event-api-7f8e6d5c4-a1b2c",
+      "count": 23,
+      "lastTimestamp": "2026-10-08T14:21:40Z"
+    },
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "secure-event-api-7f8e6d5c4-d3e4f.backoff",
+        "creationTimestamp": "2026-10-08T14:21:10Z"
+      },
+      "involvedObject": {
+        "kind": "Pod",
+        "name": "secure-event-api-7f8e6d5c4-d3e4f",
+        "namespace": "secure-event-api-production"
+      },
+      "type": "Warning",
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container secure-event-api in pod secure-event-api-7f8e6d5c4-d3e4f",
+      "count": 19,
+      "lastTimestamp": "2026-10-08T14:21:10Z"
+    },
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "secure-event-api-7f8e6d5c4-g5h6i.unhealthy",
+        "creationTimestamp": "2026-10-08T14:20:55Z"
+      },
+      "involvedObject": {
+        "kind": "Pod",
+        "name": "secure-event-api-7f8e6d5c4-g5h6i",
+        "namespace": "secure-event-api-production"
+      },
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "message": "Readiness probe failed: Get \"http://10.40.22.31:8080/readyz\": dial tcp 10.40.22.31:8080: connect: connection refused",
+      "count": 11,
+      "lastTimestamp": "2026-10-08T14:20:55Z"
+    },
+    {
+      "metadata": {
+        "namespace": "",
+        "name": "ip-10-40-21-88.eu-west-1.compute.internal.oomkilling",
+        "creationTimestamp": "2026-10-08T14:20:31Z"
+      },
+      "involvedObject": {
+        "kind": "Node",
+        "name": "ip-10-40-21-88.eu-west-1.compute.internal",
+        "namespace": ""
+      },
+      "type": "Warning",
+      "reason": "OOMKilling",
+      "message": "Memory cgroup out of memory: Killed process 4121 (gunicorn) total-vm:512044kB, anon-rss:392116kB",
+      "count": 6,
+      "lastTimestamp": "2026-10-08T14:20:31Z"
+    },
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "secure-event-api.scalingreplicaset",
+        "creationTimestamp": "2026-10-08T14:04:12Z"
+      },
+      "involvedObject": {
+        "kind": "Deployment",
+        "name": "secure-event-api",
+        "namespace": "secure-event-api-production"
+      },
+      "type": "Normal",
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled down replica set secure-event-api-6d5f7c9b8 to 0 from 1",
+      "count": 1,
+      "lastTimestamp": "2026-10-08T14:04:12Z"
+    }
+  ]
+}

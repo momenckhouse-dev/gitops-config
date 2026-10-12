@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# kustomize/helm render output from local checks and CI
+rendered/
+charts/*/charts/
+
+# platform-doctor reports produced during exercises
+baseline.md
+during.md
+after.md
+health.md

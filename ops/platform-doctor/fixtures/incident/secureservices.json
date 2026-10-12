@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "secure-event-api-staging",
+        "name": "events-archive"
+      },
+      "status": {
+        "bucketName": "cp-secureservice-secure-event-api-staging-events-archive",
+        "conditions": [
+          {
+            "type": "Synced",
+            "status": "True"
+          },
+          {
+            "type": "Ready",
+            "status": "True"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "events-archive"
+      },
+      "status": {
+        "bucketName": "cp-secureservice-secure-event-api-production-events-archive",
+        "conditions": [
+          {
+            "type": "Synced",
+            "status": "True"
+          },
+          {
+            "type": "Ready",
+            "status": "True"
+          }
+        ]
+      }
+    }
+  ]
+}

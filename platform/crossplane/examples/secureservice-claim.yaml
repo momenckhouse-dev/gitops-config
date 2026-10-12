@@ -1,0 +1,13 @@
+# What a developer writes to get a guardrailed S3 event archive + IRSA role.
+apiVersion: platform.example.io/v1alpha1
+kind: SecureService
+metadata:
+  name: events-archive
+  namespace: team-threat-intel
+spec:
+  parameters:
+    dataClassification: confidential
+    retentionDays: 365
+    serviceAccountName: threat-intel-ingestor
+  writeConnectionSecretToRef:
+    name: threat-intel-archive

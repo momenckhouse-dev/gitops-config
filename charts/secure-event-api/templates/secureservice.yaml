@@ -1,0 +1,18 @@
+{{- if .Values.secureService.enabled }}
+apiVersion: platform.example.io/v1alpha1
+kind: SecureService
+metadata:
+  name: {{ .Values.secureService.claimName }}
+  labels:
+    {{- include "secure-event-api.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parameters:
+    dataClassification: {{ .Values.secureService.dataClassification }}
+    retentionDays: {{ .Values.secureService.retentionDays }}
+    serviceAccountName: {{ include "secure-event-api.serviceAccountName" . }}
+  writeConnectionSecretToRef:
+    name: {{ .Values.archive.secretName }}
+{{- end }}

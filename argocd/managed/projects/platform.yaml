@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: Cluster-wide platform components owned by the platform team.
+  sourceRepos:
+    - https://github.com/momenckhouse-dev/gitops-config.git
+    - https://argoproj.github.io/argo-helm
+    - https://charts.crossplane.io/stable
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

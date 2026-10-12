@@ -1,0 +1,7 @@
+# Shared values for every environment. Per-environment differences live in overlay patches.
+image:
+  repository: secure-event-api
+  tag: "1.0.0"
+config:
+  logLevel: INFO
+  faultMode: none

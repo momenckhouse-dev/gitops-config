@@ -1,0 +1,54 @@
+# IRSA: each provider gets a fixed ServiceAccount name so the IAM trust policy can pin it.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-aws-s3
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-aws-s3
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/secure-platform-crossplane-aws
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-aws-iam
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-aws-iam
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/secure-platform-crossplane-aws
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-s3
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-s3:v1.21.0
+  runtimeConfigRef:
+    name: provider-aws-s3
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-iam
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-iam:v1.21.0
+  runtimeConfigRef:
+    name: provider-aws-iam
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-patch-and-transform
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.8.2
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-environment-configs
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-environment-configs:v0.2.0

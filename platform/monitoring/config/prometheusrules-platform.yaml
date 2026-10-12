@@ -1,0 +1,68 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-health
+spec:
+  groups:
+    - name: cluster-health
+      rules:
+        - alert: NodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} is NotReady"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/node-not-ready.md
+
+        - alert: PodMemoryNearLimit
+          expr: |
+            max by (namespace, pod, container) (container_memory_working_set_bytes{container!="", image!=""})
+              /
+            max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory"})
+              > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is above 90% of its memory limit"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/pod-crashloop-oom.md
+
+        - alert: ContainerOOMKilled
+          expr: |
+            (kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+              and on (namespace, pod, container)
+            (increase(kube_pod_container_status_restarts_total[10m]) > 0)
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled in the last 10 minutes"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/pod-crashloop-oom.md
+
+    - name: argocd
+      rules:
+        - alert: ArgoCDAppOutOfSync
+          expr: argocd_app_info{sync_status!="Synced"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo CD application {{ $labels.name }} has been {{ $labels.sync_status }} for 15m"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/argocd-app-degraded.md
+
+        - alert: ArgoCDAppDegraded
+          expr: argocd_app_info{health_status="Degraded"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Argo CD application {{ $labels.name }} is Degraded"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/argocd-app-degraded.md
+
+        - alert: ArgoCDSyncFailing
+          expr: increase(argocd_app_sync_total{phase=~"Error|Failed"}[15m]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo CD sync of {{ $labels.name }} failed in the last 15m"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/argocd-app-degraded.md

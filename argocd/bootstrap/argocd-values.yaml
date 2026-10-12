@@ -1,0 +1,53 @@
+# Values for the argo-cd Helm chart. Used for the one-time bootstrap install and then
+# by the self-managing "argocd" Application, so Argo CD's own config is also GitOps-managed.
+global:
+  domain: argocd.internal.example.io
+
+configs:
+  cm:
+    # Overlays inflate the local Helm chart through kustomize's helmCharts generator.
+    kustomize.buildOptions: --enable-helm
+    resource.customizations.health.platform.example.io_SecureService: |
+      hs = {}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Synced" and c.status == "False" then
+            hs.status = "Degraded"
+            hs.message = c.message
+            return hs
+          end
+          if c.type == "Ready" and c.status == "True" then
+            hs.status = "Healthy"
+            hs.message = "Archive bucket and workload role are ready"
+            return hs
+          end
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "Waiting for Crossplane to provision the archive"
+      return hs
+  params:
+    controller.diff.server.side: "true"
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      g, momenckhouse-dev:platform-leads, role:admin
+      p, role:developer, applications, get, secure-event-api/*, allow
+      p, role:developer, applications, sync, secure-event-api/secure-event-api-staging, allow
+      g, momenckhouse-dev:developers, role:developer
+
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+server:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true

@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: secure-event-api
+  namespace: argocd
+spec:
+  description: Tenant project. Can only deploy namespaced resources into its own namespaces.
+  sourceRepos:
+    - https://github.com/momenckhouse-dev/gitops-config.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: secure-event-api-staging
+    - server: https://kubernetes.default.svc
+      namespace: secure-event-api-production
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ServiceAccount
+    - group: ""
+      kind: Service
+    - group: apps
+      kind: Deployment
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: platform.example.io
+      kind: SecureService
+  orphanedResources:
+    warn: true

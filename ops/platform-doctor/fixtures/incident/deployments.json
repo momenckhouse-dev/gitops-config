@@ -1,0 +1,148 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "argocd",
+        "name": "argocd-server"
+      },
+      "spec": {
+        "replicas": 1
+      },
+      "status": {
+        "availableReplicas": 1,
+        "updatedReplicas": 1,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True"
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "reason": "NewReplicaSetAvailable"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "argocd",
+        "name": "argocd-repo-server"
+      },
+      "spec": {
+        "replicas": 1
+      },
+      "status": {
+        "availableReplicas": 1,
+        "updatedReplicas": 1,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True"
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "reason": "NewReplicaSetAvailable"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "crossplane-system",
+        "name": "crossplane"
+      },
+      "spec": {
+        "replicas": 1
+      },
+      "status": {
+        "availableReplicas": 1,
+        "updatedReplicas": 1,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True"
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "reason": "NewReplicaSetAvailable"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "monitoring",
+        "name": "kube-prometheus-stack-grafana"
+      },
+      "spec": {
+        "replicas": 1
+      },
+      "status": {
+        "availableReplicas": 1,
+        "updatedReplicas": 1,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True"
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "reason": "NewReplicaSetAvailable"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "secure-event-api-staging",
+        "name": "secure-event-api"
+      },
+      "spec": {
+        "replicas": 2
+      },
+      "status": {
+        "availableReplicas": 2,
+        "updatedReplicas": 2,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True"
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "reason": "NewReplicaSetAvailable"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "secure-event-api-production",
+        "name": "secure-event-api"
+      },
+      "spec": {
+        "replicas": 3
+      },
+      "status": {
+        "availableReplicas": 1,
+        "updatedReplicas": 3,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "False"
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "reason": "NewReplicaSetAvailable"
+          }
+        ]
+      }
+    }
+  ]
+}

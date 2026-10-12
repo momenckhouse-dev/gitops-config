@@ -1,0 +1,269 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: secureservice-s3-archive
+  labels:
+    provider: aws
+    storage: s3
+spec:
+  compositeTypeRef:
+    apiVersion: platform.example.io/v1alpha1
+    kind: XSecureService
+  writeConnectionSecretsToNamespace: crossplane-system
+  mode: Pipeline
+  pipeline:
+    - step: load-platform-settings
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: platform-aws-settings
+
+    - step: compose-event-archive
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        environment:
+          patches:
+            - type: FromCompositeFieldPath
+              fromFieldPath: spec.claimRef.namespace
+              toFieldPath: claimNamespace
+            - type: FromCompositeFieldPath
+              fromFieldPath: spec.parameters.serviceAccountName
+              toFieldPath: serviceAccountName
+            - type: CombineFromComposite
+              combine:
+                variables:
+                  - fromFieldPath: spec.claimRef.namespace
+                  - fromFieldPath: spec.claimRef.name
+                strategy: string
+                string:
+                  fmt: "cp-secureservice-%s-%s"
+              toFieldPath: resourceName
+
+        resources:
+          # ---------------------------------------------------------------- bucket
+          - name: bucket
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: Bucket
+              spec:
+                forProvider:
+                  forceDestroy: false
+                  tags:
+                    ManagedBy: crossplane
+                    PlatformApi: SecureService
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: resourceName
+                toFieldPath: metadata.annotations[crossplane.io/external-name]
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: claimNamespace
+                toFieldPath: spec.forProvider.tags.Namespace
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.dataClassification
+                toFieldPath: spec.forProvider.tags.DataClassification
+              - type: ToCompositeFieldPath
+                fromFieldPath: metadata.annotations[crossplane.io/external-name]
+                toFieldPath: status.bucketName
+            connectionDetails:
+              - name: bucket
+                type: FromFieldPath
+                fromFieldPath: metadata.annotations[crossplane.io/external-name]
+              - name: region
+                type: FromFieldPath
+                fromFieldPath: spec.forProvider.region
+
+          # ------------------------------------------------- guardrail: no public access
+          - name: public-access-block
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: BucketPublicAccessBlock
+              spec:
+                forProvider:
+                  bucketSelector:
+                    matchControllerRef: true
+                  blockPublicAcls: true
+                  blockPublicPolicy: true
+                  ignorePublicAcls: true
+                  restrictPublicBuckets: true
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+
+          # ----------------------------------------------- guardrail: ACLs disabled
+          - name: ownership-controls
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: BucketOwnershipControls
+              spec:
+                forProvider:
+                  bucketSelector:
+                    matchControllerRef: true
+                  rule:
+                    - objectOwnership: BucketOwnerEnforced
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+
+          # ------------------------------------- guardrail: encryption by classification
+          - name: encryption
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: BucketServerSideEncryptionConfiguration
+              spec:
+                forProvider:
+                  bucketSelector:
+                    matchControllerRef: true
+                  rule:
+                    - bucketKeyEnabled: true
+                      applyServerSideEncryptionByDefault:
+                        - sseAlgorithm: aws:kms
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.dataClassification
+                toFieldPath: spec.forProvider.rule[0].applyServerSideEncryptionByDefault[0].sseAlgorithm
+                transforms:
+                  - type: map
+                    map:
+                      internal: AES256
+                      confidential: aws:kms
+                      restricted: aws:kms
+
+          # ------------------------------------------- guardrail: versioning always on
+          - name: versioning
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: BucketVersioning
+              spec:
+                forProvider:
+                  bucketSelector:
+                    matchControllerRef: true
+                  versioningConfiguration:
+                    - status: Enabled
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+
+          # --------------------------------------- guardrail: tiering + bounded retention
+          - name: lifecycle
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: BucketLifecycleConfiguration
+              spec:
+                forProvider:
+                  bucketSelector:
+                    matchControllerRef: true
+                  rule:
+                    - id: archive-tiering
+                      status: Enabled
+                      filter:
+                        - prefix: ""
+                      transition:
+                        - days: 30
+                          storageClass: GLACIER_IR
+                      expiration:
+                        - days: 365
+                      noncurrentVersionExpiration:
+                        - noncurrentDays: 30
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.retentionDays
+                toFieldPath: spec.forProvider.rule[0].expiration[0].days
+
+          # ------------------------------------------------- guardrail: TLS-only access
+          - name: tls-only-policy
+            base:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: BucketPolicy
+              spec:
+                forProvider:
+                  bucketSelector:
+                    matchControllerRef: true
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: region
+                toFieldPath: spec.forProvider.region
+              - type: CombineFromEnvironment
+                combine:
+                  variables:
+                    - fromFieldPath: resourceName
+                    - fromFieldPath: resourceName
+                  strategy: string
+                  string:
+                    fmt: |
+                      {"Version":"2012-10-17","Statement":[{"Sid":"DenyInsecureTransport","Effect":"Deny","Principal":"*","Action":"s3:*","Resource":["arn:aws:s3:::%s","arn:aws:s3:::%s/*"],"Condition":{"Bool":{"aws:SecureTransport":"false"}}}]}
+                toFieldPath: spec.forProvider.policy
+
+          # ------------------------------------ workload identity (IRSA), boundary-capped
+          - name: workload-role
+            base:
+              apiVersion: iam.aws.upbound.io/v1beta1
+              kind: Role
+              spec:
+                forProvider:
+                  tags:
+                    ManagedBy: crossplane
+                    PlatformApi: SecureService
+            patches:
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: resourceName
+                toFieldPath: metadata.annotations[crossplane.io/external-name]
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: boundaryPolicyArn
+                toFieldPath: spec.forProvider.permissionsBoundary
+              - type: CombineFromEnvironment
+                combine:
+                  variables:
+                    - fromFieldPath: oidcProviderArn
+                    - fromFieldPath: oidcProvider
+                    - fromFieldPath: claimNamespace
+                    - fromFieldPath: serviceAccountName
+                    - fromFieldPath: oidcProvider
+                  strategy: string
+                  string:
+                    fmt: |
+                      {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"%s"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"%s:sub":"system:serviceaccount:%s:%s","%s:aud":"sts.amazonaws.com"}}}]}
+                toFieldPath: spec.forProvider.assumeRolePolicy
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.arn
+                toFieldPath: status.roleArn
+
+          - name: workload-role-policy
+            base:
+              apiVersion: iam.aws.upbound.io/v1beta1
+              kind: RolePolicy
+              spec:
+                forProvider:
+                  roleSelector:
+                    matchControllerRef: true
+            patches:
+              - type: CombineFromEnvironment
+                combine:
+                  variables:
+                    - fromFieldPath: resourceName
+                    - fromFieldPath: resourceName
+                  strategy: string
+                  string:
+                    fmt: |
+                      {"Version":"2012-10-17","Statement":[{"Sid":"WriteArchive","Effect":"Allow","Action":["s3:PutObject","s3:GetObject"],"Resource":"arn:aws:s3:::%s/*"},{"Sid":"ListArchive","Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::%s"}]}
+                toFieldPath: spec.forProvider.policy
