@@ -43,6 +43,29 @@ spec:
             summary: "secure-event-api containers in {{ $labels.namespace }} restarted {{ $value }} times in 10m"
             runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/pod-crashloop-oom.md
 
+        # Capacity, not app-reported errors: an OOMKilled pod returns no 5xx, so the error ratio stays 0
+        # while clients get connection failures (INC-2026-001).
+        - alert: SecureEventApiNoReadyReplicas
+          expr: max by (namespace) (kube_deployment_status_replicas_available{deployment="secure-event-api"}) == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "secure-event-api in {{ $labels.namespace }} has no ready replicas: requests are failing"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/pod-crashloop-oom.md
+
+        # Averaged over 10m because crash-looping pods flap ready/unready, which resets a plain `for:` timer.
+        - alert: SecureEventApiDegradedCapacity
+          expr: |
+            avg_over_time(max by (namespace) (kube_deployment_status_replicas_available{deployment="secure-event-api"})[10m:30s])
+              <
+            0.75 * max by (namespace) (kube_deployment_spec_replicas{deployment="secure-event-api"})
+          labels:
+            severity: warning
+          annotations:
+            summary: "secure-event-api in {{ $labels.namespace }} averaged under 75% of its desired replicas over 10m"
+            runbook_url: https://github.com/momenckhouse-dev/gitops-config/blob/main/ops/runbooks/pod-crashloop-oom.md
+
         - alert: SecureEventApiArchiveFailures
           expr: sum by (namespace) (rate(events_archive_failures_total{job="secure-event-api"}[5m])) > 0
           for: 5m

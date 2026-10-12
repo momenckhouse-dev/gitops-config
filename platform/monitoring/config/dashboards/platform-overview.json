@@ -793,7 +793,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"secure-event-api\",namespace=~\"$namespace\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"secure-event-api\",namespace=~\"$namespace\"}[5m]))",
+          "expr": "(sum(rate(http_requests_total{job=\"secure-event-api\",namespace=~\"$namespace\",status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_requests_total{job=\"secure-event-api\",namespace=~\"$namespace\"}[5m]))",
           "refId": "A",
           "legendFormat": "5xx ratio"
         }

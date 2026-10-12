@@ -1,0 +1,47 @@
+# In-cluster load for the incident exercise. A laptop port-forward pins one pod and dies when that
+# pod is OOMKilled; this pod goes through the Service, so it keeps sending while pods restart.
+# Satisfies the namespace's "restricted" Pod Security level. Not managed by Argo CD: delete it after.
+#   kubectl apply -f ops/incident-sim/loadgen-pod.yaml
+#   kubectl -n secure-event-api-staging logs -f loadgen
+#   kubectl -n secure-event-api-staging delete pod loadgen
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loadgen
+  namespace: secure-event-api-staging
+  labels:
+    app: loadgen
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: loadgen
+      image: curlimages/curl:8.11.1
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            i=$((i + 1))
+            case $((i % 4)) in 0) s=low ;; 1) s=medium ;; 2) s=high ;; 3) s=critical ;; esac
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+              -H 'Content-Type: application/json' \
+              -d "{\"source\":\"loadgen\",\"severity\":\"$s\",\"message\":\"synthetic event $i\"}" \
+              http://secure-event-api/v1/events)
+            echo "$(date +%T) request=$i status=$code"
+            sleep 0.25
+          done
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 32Mi
