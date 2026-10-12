@@ -4,29 +4,28 @@ kind: Kustomization
 namespace: secure-event-api-staging
 
 resources:
-  - namespace.yaml
-  - ../base
+- namespace.yaml
+- ../base
 
 labels:
-  - pairs:
-      environment: staging
-    includeSelectors: false
+- pairs:
+    environment: staging
 
 images:
-  - name: secure-event-api
-    newName: 111122223333.dkr.ecr.eu-west-1.amazonaws.com/secure-event-api
-    newTag: 3f9c2a1b7d4e
+- name: secure-event-api
+  newName: 071975552383.dkr.ecr.eu-central-1.amazonaws.com/secure-event-api
+  newTag: b21669992f88
 
 patches:
-  - path: patches/serviceaccount.yaml
-  - path: patches/secureservice.yaml
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: secure-event-api
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 2
-      - op: replace
-        path: /spec/maxReplicas
-        value: 4
+- path: patches/serviceaccount.yaml
+- path: patches/secureservice.yaml
+- patch: |-
+    - op: replace
+      path: /spec/minReplicas
+      value: 2
+    - op: replace
+      path: /spec/maxReplicas
+      value: 4
+  target:
+    kind: HorizontalPodAutoscaler
+    name: secure-event-api
