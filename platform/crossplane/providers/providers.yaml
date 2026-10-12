@@ -8,7 +8,7 @@ spec:
     metadata:
       name: provider-aws-s3
       annotations:
-        eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/secure-platform-crossplane-aws
+        eks.amazonaws.com/role-arn: arn:aws:iam::071975552383:role/secure-platform-crossplane-aws
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -19,7 +19,7 @@ spec:
     metadata:
       name: provider-aws-iam
       annotations:
-        eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/secure-platform-crossplane-aws
+        eks.amazonaws.com/role-arn: arn:aws:iam::071975552383:role/secure-platform-crossplane-aws
 ---
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
