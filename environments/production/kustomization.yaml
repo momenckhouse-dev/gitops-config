@@ -4,37 +4,36 @@ kind: Kustomization
 namespace: secure-event-api-production
 
 resources:
-  - namespace.yaml
-  - ../base
+- namespace.yaml
+- ../base
 
 labels:
-  - pairs:
-      environment: production
-    includeSelectors: false
+- pairs:
+    environment: production
 
 images:
-  - name: secure-event-api
-    newName: 071975552383.dkr.ecr.eu-central-1.amazonaws.com/secure-event-api
-    newTag: b21669992f88
+- name: secure-event-api
+  newName: 071975552383.dkr.ecr.eu-central-1.amazonaws.com/secure-event-api
+  newTag: ef872a3e3dde
 
 patches:
-  - path: patches/serviceaccount.yaml
-  - path: patches/secureservice.yaml
-  - path: patches/deployment-resources.yaml
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: secure-event-api
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 3
-      - op: replace
-        path: /spec/maxReplicas
-        value: 10
-  - target:
-      kind: PodDisruptionBudget
-      name: secure-event-api
-    patch: |-
-      - op: replace
-        path: /spec/minAvailable
-        value: 2
+- path: patches/serviceaccount.yaml
+- path: patches/secureservice.yaml
+- path: patches/deployment-resources.yaml
+- patch: |-
+    - op: replace
+      path: /spec/minReplicas
+      value: 3
+    - op: replace
+      path: /spec/maxReplicas
+      value: 10
+  target:
+    kind: HorizontalPodAutoscaler
+    name: secure-event-api
+- patch: |-
+    - op: replace
+      path: /spec/minAvailable
+      value: 2
+  target:
+    kind: PodDisruptionBudget
+    name: secure-event-api
