@@ -3,6 +3,9 @@ kind: AppProject
 metadata:
   name: platform
   namespace: argocd
+  annotations:
+    # Projects must exist before any Application that references them (lowest wave is -20).
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   description: Cluster-wide platform components owned by the platform team.
   sourceRepos:

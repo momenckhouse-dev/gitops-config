@@ -3,6 +3,9 @@ kind: AppProject
 metadata:
   name: secure-event-api
   namespace: argocd
+  annotations:
+    # Projects must exist before any Application that references them (lowest wave is -20).
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   description: Tenant project. Can only deploy namespaced resources into its own namespaces.
   sourceRepos:

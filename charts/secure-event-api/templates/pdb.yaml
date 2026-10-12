@@ -5,6 +5,9 @@ metadata:
   name: {{ include "secure-event-api.fullname" . }}
   labels:
     {{- include "secure-event-api.labels" . | nindent 4 }}
+  annotations:
+    # After the Deployment: a PDB reports InsufficientPods until pods exist, which would block the wave.
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
   selector:
