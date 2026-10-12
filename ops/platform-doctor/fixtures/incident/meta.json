@@ -1,4 +1,4 @@
 {
   "captured_at": "2026-10-08T14:22:00Z",
-  "context": "secure-platform-eks (fixture: INC-2026-001 at T+19m)"
+  "context": "secure-platform-eks (synthetic fixture: OOM crash loop)"
 }

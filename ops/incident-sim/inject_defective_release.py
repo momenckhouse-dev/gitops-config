@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Stage the INC-2026-001 defective release in a gitops-config checkout.
 
-Release 9e41c07a2b55 shipped an unbounded in-memory de-duplication cache. To reproduce
-it without building a broken image, this script pins the new tag *and* turns on the
-app's memory_leak fault mode in the target overlay, so each request retains ~1 MiB.
+The "release" enables an unbounded in-memory event cache. To reproduce it without building
+a broken image, this script turns on the app's memory_leak fault mode in the target overlay
+(each request retains ~1 MiB) and optionally pins a tag. The tag must already exist in ECR,
+otherwise the pods fail with ImagePullBackOff instead of the OOM being exercised.
 
 It only edits files. You commit and open the PR yourself, exactly like a real release,
 and the rollback is `git revert` of that commit - never kubectl.
@@ -38,7 +39,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gitops-dir", type=Path, required=True, help="path to a gitops-config checkout")
     parser.add_argument("--env", default="staging", choices=["staging", "production"])
-    parser.add_argument("--tag", default="9e41c07a2b55", help="image tag of the 'defective' release")
+    parser.add_argument(
+        "--tag",
+        help="image tag of the 'defective' release; must exist in ECR (default: keep the overlay's current tag)",
+    )
     parser.add_argument("--fault", default="memory_leak", choices=["memory_leak", "errors", "latency"])
     args = parser.parse_args(argv)
 
@@ -52,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     for image in kustomization.get("images", []):
         if image.get("name") == "secure-event-api":
             previous = image.get("newTag")
+            args.tag = args.tag or previous
             image["newTag"] = args.tag
             break
     else:

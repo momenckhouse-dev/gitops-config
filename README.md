@@ -364,12 +364,12 @@ Full guide: [ops/incident-sim/README.md](ops/incident-sim/README.md) · RCA:
 
 ```mermaid
 flowchart LR
-  A[PR: release 9e41c07a2b55<br/>unbounded cache] -->|merge| B[Argo CD sync<br/>rollout OK]
+  A[PR #5: staging<br/>unbounded cache] -->|merge, CI green| B[Argo CD sync<br/>rollout OK]
   B --> C[Memory climbs<br/>OOMKilled 137]
-  C --> D[Alerts: memory near limit,<br/>restarts, 5xx ratio, Argo Degraded]
-  D --> E[Grafana: versions panel +<br/>sync annotation = release]
-  E --> F[K8s events + platform-doctor:<br/>BackOff, OOMKilling]
-  F --> G[git revert → PR → approve → merge]
+  C --> D[Alerts: OOMKilled, restarts,<br/>crash loop, Argo Degraded]
+  D --> E[Grafana: memory vs limit +<br/>Argo CD history = release]
+  E --> F[describe + events + platform-doctor:<br/>OOMKilled, BackOff]
+  F --> G[git revert → PR #6 → merge]
   G --> H[Argo CD sync → healthy]
   H --> I[RCA + action items]
 ```
@@ -424,7 +424,8 @@ cd infra/terraform && terraform destroy
   Python CLI (17 tests) that produces a cluster health report with CI-friendly exit codes.
 - **Ran an incident exercise**: shipped a defective release, detected it through Prometheus alerts and Grafana,
   diagnosed OOM kills from Kubernetes events, **rolled back with `git revert`** (no kubectl), and wrote
-  a five-whys RCA with prioritised action items (canary analysis, soak tests, alert tuning).
+  a five-whys RCA from measured data; found that the 5xx SLO alert was blind to crash loops and added
+  flap-resistant capacity alerts, validated by replaying the incident's metrics.
 
 ### 30-second pitch for a recruiter call
 
@@ -438,12 +439,14 @@ Prometheus alerts, diagnosed it from Kubernetes events, rolled back with a git r
 
 ### STAR story for "tell me about an incident"
 
-- **Situation:** A release passed CI and staging, then crash-looped in production with OOM kills; about 31 % of requests failed.
-- **Task:** Restore service quickly without bypassing GitOps, then find out why our gates missed it.
-- **Action:** The error-ratio SLO alert paged. Grafana's version panel and the Argo CD sync annotation tied it to the release,
-  Kubernetes events showed `OOMKilled`/`OOMKilling`, and I reverted the release commit through a reviewed PR so Argo CD rolled back.
-- **Result:** Mitigated 17 minutes after the page with no data loss. The RCA produced five action items, including a CI soak test
-  that watches memory and canary analysis for production.
+- **Situation:** In a planned exercise on my EKS lab, a release that passed CI put an unbounded cache into staging. Both pods
+  were OOMKilled in a loop and 10 % of client requests failed for 23 minutes (100 % at the worst moments).
+- **Task:** Restore service without bypassing GitOps, then find out why our gates and alerts missed it.
+- **Action:** Restart and OOM alerts fired 2.5 minutes after rollout. `kubectl describe` showed `OOMKilled` / exit 137, and Argo CD's
+  history tied it to the release commit. A manual `kubectl` fix would be reverted by selfHeal, so I rolled back with `git revert` through a PR.
+- **Result:** Recovered 21 minutes after the first alert, with no loss of accepted events. The key finding: the 5xx error-rate alert
+  never fired, because a killed pod returns no 500s. I added capacity alerts that survive pod flapping, replayed the incident's data
+  to prove they would have fired, and fixed a dashboard panel that showed "No data" instead of 0.
 
 Be upfront that this was a **staged exercise** in your own lab. Interviewers value a well-run
 simulation, and claiming it was real production is easy to catch.

@@ -1,115 +1,143 @@
-# RCA: INC-2026-001, secure-event-api OOM crash loop after release 9e41c07a2b55
+# RCA: INC-2026-001, secure-event-api OOM crash loop in staging after enabling an in-memory cache
 
-> **Simulated exercise.** This incident was staged with `ops/incident-sim` to practise detection,
-> diagnosis and Git-based rollback. Times, metrics and evidence come from the exercise run;
-> the "defect" is the app's `memory_leak` fault mode standing in for a real code regression.
+> **Planned exercise, real data.** The defect was injected on purpose with
+> [`ops/incident-sim`](../incident-sim/README.md) (the app's `memory_leak` fault mode stands in for an
+> unbounded cache). Everything below was measured on the live EKS cluster on 2026-10-12: alert times
+> from Prometheus, deploy times from Argo CD history, and client impact from the load generator's log.
 
 | | |
 |---|---|
-| **Severity** | SEV-2 (partial loss of ingestion, no data loss) |
+| **Severity** | SEV-3: staging only, synthetic traffic, production unaffected |
 | **Status** | Resolved |
-| **Date** | 2026-10-08 |
-| **Duration** | 31 min customer impact (14:09–14:40 UTC); 21 min from first alert to recovery |
-| **Detected by** | Prometheus alert `SecureEventApiHighErrorRate` → Alertmanager page |
-| **Resolved by** | `git revert` of the release commit in `gitops-config`, reconciled by Argo CD |
-| **Incident lead** | on-call platform engineer |
+| **Date** | 2026-10-12 |
+| **Duration** | 23 min client impact (17:41–18:04 UTC); 21 min from first alert to recovery |
+| **Detected by** | Prometheus alerts `SecureEventApiRestarting` (critical) and `ContainerOOMKilled`, 2.5 min after rollout |
+| **Resolved by** | `git revert` of the release commit (PR #6), reconciled by Argo CD |
+| **Incident lead** | Momen Khouse (platform on-call) |
 
 ## Summary
 
-Release `9e41c07a2b55` of secure-event-api added an in-memory de-duplication cache with no size bound.
-Under production traffic each pod's memory grew by ~1 MiB per request until it hit the 384 MiB limit
-and was OOM-killed. All three pods entered a crash loop, and at peak 31 % of event submissions failed.
-The release was rolled back by reverting its commit in the GitOps repository. No kubectl changes were
-made to the workload. Clients retried failed submissions, so no events were lost.
+PR #5, "staging: enable in-memory event cache", turned on a cache that kept about 1 MiB per request and
+never released it. After Argo CD synced it, both staging pods filled their 256 MiB memory limit within
+about two minutes, were OOMKilled (exit code 137), and entered a crash loop. For 23 minutes, 10.2 % of
+client requests failed, peaking at 100 % in the minutes when both pods were down at once. The release
+was rolled back by reverting its commit in Git; no `kubectl` change was used to fix the workload.
 
 ## Impact
 
-- Peak 5xx/connection-error ratio: **31.4 %** of `POST /v1/events` (14:17–14:31).
-- p95 latency for successful requests rose from 18 ms to 640 ms (fewer pods serving).
-- Staging ran the same build but at ~2 % of production traffic, so its pods had not yet reached the limit.
-- No events lost: the API returns an error before acknowledging, and senders retry with back-off.
+| Measure | Value | Source |
+|---|---|---|
+| Client requests in the impact window | 4,127 | loadgen log, 17:41–18:04 |
+| Failed requests | 419 (10.2 %), all connection failures (`status=000`) | loadgen log |
+| Worst minutes | 17:52, 17:55, 17:56: 100 % failed | loadgen log |
+| Server-reported 5xx ratio | **0 % throughout** | Prometheus `http_requests_total` |
+| Restarts | 6 per pod in 18 minutes | platform-doctor |
+| Data loss | None for accepted events: the app writes to S3 before it answers `201`. The 419 failed events were never acknowledged; real senders must retry (the load generator does not). | app design, S3 |
+| Production | Not affected: the change only touched the staging overlay | Git diff |
 
 ## Timeline (UTC)
 
 | Time | Event |
 |---|---|
-| 13:58 | PR *production: promote secure-event-api 9e41c07a2b55* approved by CODEOWNER and merged (`c7d21f0`). |
-| 14:03 | Argo CD syncs `secure-event-api-production`; rolling update starts (maxUnavailable 0). |
-| 14:04 | Rollout completes. All 3 new pods pass readiness. Argo CD reports **Synced/Healthy**. |
-| 14:09 | First `OOMKilled` (container exit 137). Memory panel shows linear climb on all new pods. |
-| 14:12 | `PodMemoryNearLimit` (warning) fires. |
-| 14:14 | `SecureEventApiHighErrorRate` (critical) fires → on-call paged. `SecureEventApiRestarting` fires. |
-| 14:16 | On-call acknowledges, opens Grafana *Platform Overview*: error ratio 22 % and rising; *Running versions* shows only `9e41c07a2b55`; restarts correlate with the 14:03 sync annotation. |
-| 14:19 | `ArgoCDAppDegraded` fires (Synced/**Degraded**). |
-| 14:22 | `platform-doctor` run (report attached below): CrashLoopBackOff + last state OOMKilled on all new pods, `OOMKilling` kernel events, 97 % of memory limit on the surviving pod. Decision: roll back first, diagnose later. |
-| 14:24 | `git revert c7d21f0` → PR #214 *ROLLBACK production*. `validate` shows the only diff is image tag + `FAULT_MODE`. |
-| 14:27 | PR approved by platform lead, merged (`e5a90b3`). |
-| 14:28 | `argocd app get --refresh`; Argo CD syncs, rolling update to `3f9c2a1b7d4e` begins. |
-| 14:31 | Rollout complete, Argo CD **Synced/Healthy**. Error ratio falling. |
-| 14:40 | Error ratio < 0.1 % for 5 min; all alerts resolved. Incident closed as mitigated. |
+| 17:30:15 | PR #4 merged (monitoring config, unrelated; ruled out because it touched no workload) |
+| 17:34:20 | Load generator started: 100 % `201` (baseline) |
+| 17:35:13 | **PR #5 merged**: `FAULT_MODE=memory_leak` in the staging overlay; CI passed |
+| 17:41:23 | **Argo CD synced `b296105`**; new ReplicaSet `68b4ccc4dd` rolls out. First client failures |
+| 17:43:46 | 🔔 `SecureEventApiRestarting` firing (critical) |
+| 17:43:53 | 🔔 `ContainerOOMKilled` firing for both pods |
+| 17:45:30 | First moment with fewer ready replicas than desired; pods start flapping |
+| 17:47 | On-call starts investigating: Grafana *memory vs limit* shows a saw-tooth to 100 % |
+| ~17:53 | Diagnosis: `describe` shows `OOMKilled`, exit 137, `FAULT_MODE=memory_leak`; Argo CD history ties onset to `b296105` |
+| 17:55:30–17:58:00 | Full outage: 0 of 2 replicas ready |
+| 17:59:58 | `platform-doctor` snapshot: OVERALL CRIT (below) |
+| ~18:01 | **PR #6 merged**: `git revert` of `b296105` |
+| 18:04:43 | **Argo CD synced the revert** (`cea5aa5`); healthy ReplicaSet `789c8f6f6f` back |
+| 18:04 | Last failed request; 100 % `201` from 18:05 |
 
-**Time to detect:** 5 min after first OOM (alert `for: 5m`). **Time to mitigate:** 17 min from page.
+## Detection
 
-## Detection: what worked
-
-- The SLO alert (`secure_event_api:http_error_ratio:rate5m > 5 %`) paged within 5 minutes of impact.
-- The Grafana *Running versions* panel plus the Argo CD sync annotation made the release correlation obvious in under a minute.
-- Kubernetes events gave the mechanism directly: `BackOff`, `Unhealthy` (readiness refused during restart)
-  and node-level `OOMKilling` naming the gunicorn process.
+- **Worked:** restart and OOM alerts fired 2.5 minutes after the rollout. Grafana's *memory vs limit*
+  panel made the leak obvious at a glance.
+- **Did not work:** `SecureEventApiHighErrorRate` never fired. An OOMKilled pod does not answer with a
+  500; it disappears and the client's connection fails. The server-side 5xx ratio stayed at 0 % while
+  clients saw 10 % failures. The dashboard's *Error ratio* panel also showed "No data" instead of 0,
+  which looks like a broken panel at the moment you need to trust it.
+- **Flapping defeats `for:`.** Pods cycled OOM → restart → briefly Ready → OOM, so the ready-replica
+  count kept bouncing between 0, 1 and 2. A rule like "below desired replicas `for: 5m`" would never
+  have fired, because every brief recovery resets the timer.
 
 ## Diagnosis evidence
 
 ```text
-[CRIT] Pods                   8/11 pods healthy
-  - secure-event-api-production/secure-event-api-7f8e6d5c4-a1b2c [secure-event-api]: CrashLoopBackOff (restarts=5, last terminated: OOMKilled)
-  - secure-event-api-production/secure-event-api-7f8e6d5c4-d3e4f [secure-event-api]: CrashLoopBackOff (restarts=4, last terminated: OOMKilled)
-[CRIT] Argo CD applications   9/10 Synced and Healthy
-  - secure-event-api-production: Synced/Degraded rev=c7d21f0 images=secure-event-api:9e41c07a2b55
-[WARN] Pod resource usage
-  - secure-event-api-production/secure-event-api-7f8e6d5c4-g5h6i: cpu=0.310 cores mem=371.0Mi (97% of 384.0Mi limit)
-[WARN] Warning events         59 warnings in the last 30m
-  - x23 BackOff: Back-off restarting failed container secure-event-api ...
-  - x6  OOMKilling: Memory cgroup out of memory: Killed process 4121 (gunicorn) ... anon-rss:392116kB
+$ kubectl -n secure-event-api-staging describe pods -l app.kubernetes.io/name=secure-event-api
+    Reason:       CrashLoopBackOff
+    Last State:   Terminated
+      Reason:     OOMKilled
+      Exit Code:  137
+    Limits:   memory: 256Mi
+    Requests: memory: 128Mi
+      FAULT_MODE:  memory_leak
 ```
 
-(Reproduce: `python ops/platform-doctor/platform_doctor.py --fixture ops/platform-doctor/fixtures/incident`.)
-
-Local reproduction after the incident: the defective build grew from 60 MB to 350 MB RSS over
-289 requests; the previous build stayed flat at 60 MB under identical load.
+```text
+platform-doctor  |  2026-10-12T17:59:58Z  |  OVERALL: CRIT
+[OK  ] Nodes                  3/3 nodes Ready
+[CRIT] Pods                   42/44 pods healthy
+         - secure-event-api-staging/secure-event-api-68b4ccc4dd-7nsmz: CrashLoopBackOff (restarts=6, last terminated: OOMKilled)
+         - secure-event-api-staging/secure-event-api-68b4ccc4dd-bqgdj: CrashLoopBackOff (restarts=6, last terminated: OOMKilled)
+[CRIT] Deployments            19/20 deployments fully available
+         - secure-event-api-staging/secure-event-api: 0/2 available, 2/2 updated
+[CRIT] Argo CD applications   9/10 Synced and Healthy
+         - secure-event-api-staging: Synced/Degraded rev=b296105
+[OK  ] SecureService claims   2/2 archives ready
+[CRIT] Prometheus alerts      3 firing (SecureEventApiRestarting, ContainerOOMKilled x2)
+[SKIP] Pod resource usage     metrics unavailable (metrics-server not installed)
+[WARN] Warning events         1560 warnings in the last 30m
+         - x753 per namespace  HorizontalPodAutoscaler FailedGetResourceMetric (no metrics-server)
+         - x27 / x25           BackOff: Back-off restarting failed container
+         - x2                  Unhealthy: Readiness probe failed: connection refused
+```
 
 ## Root cause
 
-The release introduced a cache keyed by event ID with no eviction. Every accepted event retained
-roughly 1 MiB, so memory grew linearly with traffic and reached the 384 MiB limit within minutes.
-
 ### Five whys
 
-1. **Why did requests fail?** All pods were repeatedly OOM-killed and restarting.
-2. **Why were they OOM-killed?** Memory grew without bound with request volume.
-3. **Why did memory grow?** The new de-duplication cache had no maximum size or TTL.
-4. **Why wasn't it caught before production?** Staging traffic is ~2 % of production; at that rate the
-   pods would need ~6 hours to reach the limit, and the release sat in staging for 40 minutes.
-5. **Why did the rollout succeed?** Readiness checks only prove a pod *starts* healthy. Nothing
-   compared new-version behaviour over time before shifting 100 % of traffic.
+1. **Why did requests fail?** Both pods were repeatedly OOMKilled and in CrashLoopBackOff, so for
+   long stretches there was no ready replica behind the Service.
+2. **Why were they OOMKilled?** Each request kept about 1 MiB in process memory. At about 2 requests per
+   second per pod, the 256 MiB limit was reached in roughly two minutes.
+3. **Why did memory grow?** The release enabled an in-memory cache with no size bound or eviction.
+4. **Why did it reach staging?** CI checks structure (YAML, Kustomize render, schemas), not runtime
+   behaviour. Nothing exercised the new build under load before or after the sync.
+5. **Why did recovery need a human?** Argo CD marks the app Degraded but does not roll back, and there
+   is no post-deploy check that would gate or revert a bad release.
 
 ### Contributing factors
 
-- No load/soak test in CI that watches memory.
-- Promotion is all-at-once. There is no canary step with automated analysis.
-- `PodMemoryNearLimit` is a warning and did not page. It fired 2 minutes before customer impact.
+- The error-rate SLO alert measures only server-reported errors, so it was blind to this failure mode.
+- Argo CD polls Git every ~3 minutes: 6 minutes from merge to deploy for the release, and about 3.5
+  minutes for the revert. That added latency to both the impact and the fix.
+- metrics-server is not installed: the HPA could not act (753 `FailedGetResourceMetric` warnings per
+  namespace in 30 minutes), and that noise buried the useful `BackOff` events. Scaling would not have
+  fixed a leak, but the noise slowed reading the events.
+- Staging runs 2 replicas, both on the same defective build, so there was no healthy capacity left.
 
 ## What went well
 
-- Rollback was a reviewed `git revert`; the Git history matches exactly what ran and when.
-- Immutable ECR tags meant "previous good version" was unambiguous.
-- `maxUnavailable: 0` and the PDB kept one pod serving most of the time (31 % failures, not 100 %).
+- Alerts fired 2.5 minutes after the rollout, and the dashboard showed the leak's signature immediately.
+- Argo CD's deploy history pointed straight at the responsible commit.
+- The fix was a reviewed, auditable `git revert`; recovery came about 3.5 minutes after the merge.
+- Archive-before-acknowledge meant no accepted event was lost.
+- GitOps limited the blast radius to staging; production was never touched.
 
 ## Action items
 
-| # | Action | Owner | Priority | Due |
+| # | Action | Owner | Priority | Status |
 |---|---|---|---|---|
-| 1 | Bound the de-dup cache (LRU, 10k entries, 15-min TTL) and add a unit test for the bound | app team | P1 | 2026-10-10 |
-| 2 | Add a 10-minute soak test in CI (`loadgen.py` against the built image) that fails if RSS grows > 50 MB | platform | P1 | 2026-10-17 |
-| 3 | Adopt Argo Rollouts canary for production (10 % → 50 % → 100 %) with a Prometheus analysis on error ratio and memory slope | platform | P2 | 2026-11-07 |
-| 4 | Require ≥ 2 h staging soak before `promote-to-production` can run (check in the workflow) | platform | P2 | 2026-10-24 |
-| 5 | Page on `PodMemoryNearLimit` when restarts also increase (combine into one critical alert) | platform | P3 | 2026-10-17 |
+| 1 | Alert on capacity, not only server errors: `SecureEventApiNoReadyReplicas` (0 ready for 1m) and `SecureEventApiDegradedCapacity` (10-minute average under 75 % of desired, which survives flapping). Replayed against this incident's data, they would have fired at 17:56:30 and 17:53:30. | Momen | High | Done in this PR |
+| 2 | Fix the *Error ratio (5xx)* panel to show 0 instead of "No data" (`or vector(0)`) | Momen | Medium | Done in this PR |
+| 3 | Add a post-sync smoke and soak check in staging (an Argo CD PostSync Job: short load, then assert no restarts and flat memory) and require it before production promotion | Momen | High | Open |
+| 4 | Install metrics-server so the HPA, `kubectl top` and platform-doctor's resource check work, and the warning-event noise goes away | Momen | Medium | Open |
+| 5 | Add a GitHub webhook to Argo CD to cut merge-to-deploy time from minutes to seconds (faster rollouts and faster rollbacks) | Momen | Medium | Open |
+| 6 | Evaluate Argo Rollouts with Prometheus analysis for automatic rollback on restart or OOM signals | Momen | Low | Open |
+| 7 | Exercise tooling: the inject script defaulted to an image tag that does not exist in ECR (it would have caused ImagePullBackOff instead of an OOM); it now keeps the current tag. Load now runs inside the cluster, because a port-forward dies with the first OOMKilled pod. | Momen | Low | Done in this PR |
