@@ -33,8 +33,10 @@ The `validate` workflow renders the overlay and shows the diff: it must show onl
 
 ## 3. Approve and merge (≤5 min)
 
-- A CODEOWNER (`platform-leads`) approves. During an incident the on-call lead is the approver;
-  the incident channel is the place to ask for one.
+- A code owner of the path (see `.github/CODEOWNERS`) reviews the rendered diff in the `validate` job
+  summary and approves. During an incident the on-call lead is the approver; the incident channel is
+  the place to ask for one. (In this single-maintainer lab the maintainer merges after the checks pass,
+  as in INC-2026-001; with a team, require a CODEOWNERS review on `main`.)
 - Squash-merge. **Do not** bypass branch protection; if you must, an org admin uses
   "merge without waiting for requirements" and it is recorded in the RCA.
 
