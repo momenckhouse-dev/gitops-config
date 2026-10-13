@@ -44,7 +44,7 @@ evidence.
 5. [Key design decisions](#5-key-design-decisions)
 6. [Incident exercise](#6-incident-exercise)
 7. [Cost and teardown](#7-cost-and-teardown)
-8. [Resume Takeaway](#8-resume-takeaway)
+8. [Skills covered](#8-skills-covered)
 
 ---
 
@@ -451,78 +451,23 @@ or blocks the next step:
 
 ---
 
-## 8. Resume Takeaway
 
-### One-line summary for the top of your resume
+## 8. Skills covered
 
-> Built a production-style GitOps platform on AWS EKS (Terraform, Argo CD, Crossplane, GitHub Actions
-> with OIDC, Prometheus/Grafana): self-service guardrailed S3 provisioning, signed-off promotions,
-> automatic drift repair, and a rehearsed Git-based incident rollback documented in an RCA.
-
-### Resume bullets (pick 3-5; tailor the verbs to what you actually did)
-
-- **Designed and provisioned** a multi-AZ AWS foundation with **Terraform**: VPC (3 AZs, private/public/intra
-  subnets, flow logs, S3 endpoint), **EKS** with API-mode access entries and IRSA, immutable **ECR**, and
-  least-privilege IAM; replaced stored CI access keys with **GitHub OIDC** roles scoped per repo, branch and environment.
-- **Built an internal platform API** with **Crossplane** (`SecureService`) that lets teams request encrypted,
-  versioned, TLS-only, lifecycle-managed **S3** archives plus a scoped IRSA role through one YAML claim,
-  enforcing guardrails through schema validation and an **IAM permissions boundary**.
-- **Implemented GitOps continuous delivery** with **Argo CD** (app-of-apps, sync waves, AppProjects),
-  a custom **Helm** chart and **Kustomize** overlays; staging auto-deploys, production requires an
-  environment approval and a hand-merged PR, and **selfHeal** repairs drift automatically.
-- **Secured the CI pipeline** in **GitHub Actions**: unit tests, ruff/hadolint/helm lint/kubeconform/tflint,
-  **Trivy** vulnerability gate before push, **CycloneDX SBOM**, immutable image tags, and bot-authored GitOps PRs.
-- **Built observability and tooling**: kube-prometheus-stack with SLO recording rules and alerts for error
-  ratio, latency, OOM and Argo CD sync/health; a Grafana platform dashboard; and **platform-doctor**, a
-  Python CLI (17 tests) that produces a cluster health report with CI-friendly exit codes.
-- **Ran an incident exercise**: shipped a defective release, detected it through Prometheus alerts and Grafana,
-  diagnosed OOM kills from Kubernetes events, **rolled back with `git revert`** (no kubectl), and wrote
-  a five-whys RCA from measured data; found that the 5xx SLO alert was blind to crash loops and added
-  flap-resistant capacity alerts, validated by replaying the incident's metrics.
-
-### 30-second pitch for a recruiter call
-
-"I'm an AWS cloud engineer moving into platform engineering. To show that end to end, I built a GitOps
-platform on EKS. Terraform builds the network, cluster and IAM, and CI authenticates with OIDC, so there are no
-AWS access keys in the pipeline. Developers get a Crossplane API where one YAML file gives them an encrypted S3 archive
-and a scoped IAM role, and they can't turn the guardrails off. Every deployment is a pull request:
-images are scanned and get an SBOM before they reach ECR, Argo CD deploys staging automatically, and production
-needs an approval. Then I broke it on purpose: I shipped a memory-leaking release, caught it from
-Prometheus alerts, diagnosed it from Kubernetes events, rolled back with a git revert and wrote the RCA."
-
-### STAR story for "tell me about an incident"
-
-- **Situation:** In a planned exercise on my EKS lab, a release that passed CI put an unbounded cache into staging. Both pods
-  were OOMKilled in a loop and 10 % of client requests failed for 23 minutes (100 % at the worst moments).
-- **Task:** Restore service without bypassing GitOps, then find out why our gates and alerts missed it.
-- **Action:** Restart and OOM alerts fired 2.5 minutes after rollout. `kubectl describe` showed `OOMKilled` / exit 137, and Argo CD's
-  history tied it to the release commit. A manual `kubectl` fix would be reverted by selfHeal, so I rolled back with `git revert` through a PR.
-- **Result:** Recovered 21 minutes after the first alert, with no loss of accepted events. The key finding: the 5xx error-rate alert
-  never fired, because a killed pod returns no 500s. I added capacity alerts that survive pod flapping, replayed the incident's data
-  to prove they would have fired, and fixed a dashboard panel that showed "No data" instead of 0.
-
-Be upfront that this was a **staged exercise** in your own lab. Interviewers value a well-run
-simulation, and claiming it was real production is easy to catch.
-
-### Mapping to typical Cloud / DevOps / SRE job requirements
-
-This is one lab project, not a substitute for years of production experience. It shows hands-on
-practice with each area:
-
-| Requirement | Where it shows |
+| Area | Where it shows |
 |---|---|
 | AWS (VPC, IAM, EKS, ECR, S3) | `infra/terraform/*`, Crossplane Composition |
-| Infrastructure as Code | Terraform (CI lint/scan; OIDC plan/apply jobs ready), Crossplane |
-| Kubernetes in production | Helm chart (HPA, PDB, NetworkPolicy, PSS restricted, topology spread) |
+| Infrastructure as Code | Terraform (CI lint and scan; OIDC plan/apply jobs ready), Crossplane |
+| Kubernetes | Helm chart (HPA, PDB, NetworkPolicy, PSS restricted, topology spread) |
 | CI/CD and GitOps | `ci.yml`, `validate.yml`, `promote.yml`, Argo CD app-of-apps |
 | Security / DevSecOps | OIDC, IRSA, permissions boundary, Trivy, SBOM, immutable tags, TLS-only buckets |
-| Monitoring and incident response | PrometheusRules, Grafana dashboard, runbooks, RCA |
+| Monitoring and incident response | PrometheusRules, Grafana dashboard, runbooks, [RCA](ops/incidents/INC-2026-001-secure-event-api-oom.md) |
 | Scripting (Python) | `platform-doctor`, `loadgen`, `inject_defective_release`, `validate_repo` |
 
-### Interview talking points to prepare
+### Next steps
 
-- Why production approval is a Git merge rather than an Argo CD manual sync (an auditable, reviewed record in Git).
-- How the OIDC trust policy's `sub` condition stops other repos or branches from assuming the CI role.
-- Why the Crossplane role can only create roles that carry the boundary (privilege-escalation path).
-- Why the defect passed readiness probes, and what Argo Rollouts canary analysis would add.
-- What you would change for multi-cluster: ApplicationSets, a cluster-per-environment split, External Secrets.
+- A post-sync soak test in staging that must pass before production promotion (RCA action item 3).
+- metrics-server, so the HPA can scale and `kubectl top` works.
+- An Argo CD webhook to cut merge-to-deploy time from minutes to seconds.
+- Terraform plan/apply through the OIDC CI roles instead of a workstation.
+- Argo Rollouts canary analysis; ApplicationSets and External Secrets for a multi-cluster setup.
