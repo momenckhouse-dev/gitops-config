@@ -27,8 +27,11 @@ validated offline. What actually happened, with evidence:
 production (3 pods) both running image `ef872a3e3dde`; both archive buckets Ready; no alerts firing
 apart from the Watchdog heartbeat.
 
-The setup guide in section 4 is kept for anyone who wants to build it themselves. The lab is torn
-down after the demo to save cost (section 7), so the links above are the lasting evidence.
+**Torn down on 2026-10-13** in the order in section 7: Crossplane deleted its buckets and IAM roles,
+the monitoring volumes were released, and `terraform destroy` removed the remaining 92 resources. A
+final check found no leftover clusters, instances, volumes, NAT gateways, IPs or buckets. The setup
+guide in section 4 is kept for anyone who wants to build it themselves; the links above are the lasting
+evidence.
 
 ---
 
