@@ -23,8 +23,12 @@ validated offline. What actually happened, with evidence:
 | Incident exercise and recovery | defective release [PR #5](https://github.com/momenckhouse-dev/gitops-config/pull/5), alerts fired, rollback [PR #6](https://github.com/momenckhouse-dev/gitops-config/pull/6) via `git revert`; [RCA INC-2026-001](ops/incidents/INC-2026-001-secure-event-api-oom.md) with measured timeline and impact |
 | Fixes found by running it | sync-wave deadlock ([PR #3](https://github.com/momenckhouse-dev/gitops-config/pull/3)), false EKS control-plane alerts ([PR #4](https://github.com/momenckhouse-dev/gitops-config/pull/4)), capacity alerts and dashboard fix from the RCA ([PR #7](https://github.com/momenckhouse-dev/gitops-config/pull/7)), bot-authored promotion PRs ([PR #8](https://github.com/momenckhouse-dev/gitops-config/pull/8)) |
 
+**Final state before teardown:** all 10 Argo CD applications Synced and Healthy; staging (2 pods) and
+production (3 pods) both running image `ef872a3e3dde`; both archive buckets Ready; no alerts firing
+apart from the Watchdog heartbeat.
+
 The setup guide in section 4 is kept for anyone who wants to build it themselves. The lab is torn
-down after the demo to save cost, so the links above are the lasting evidence.
+down after the demo to save cost (section 7), so the links above are the lasting evidence.
 
 ---
 
@@ -421,13 +425,26 @@ plane ~$0.10/h, nodes ~$0.30/h, NAT ~$0.05/h plus data, about **$10-12/day**. Pr
 types launch (t3.large was rejected), which is why the lab uses m7i-flex.large. Build it, record the
 demo, tear it down.
 
-```bash
-kubectl -n argocd delete application root      # cascades: workloads, then SecureService claims
-# versioned archive buckets must be emptied (all versions) before Crossplane can delete them:
-aws s3api list-object-versions --bucket <bucket> ...  # or empty them in the console
-kubectl get managed                             # wait until empty
-cd infra/terraform && terraform destroy
-```
+Teardown order. Each step exists because skipping it leaves something behind that keeps costing money
+or blocks the next step:
+
+1. **Empty both archive buckets, all object versions.** They are versioned and `forceDestroy: false`,
+   so Crossplane cannot delete a bucket that still holds objects.
+2. **`kubectl -n argocd delete application root`.** The root app and the two workload apps carry the
+   resources finalizer, so the `SecureService` claims are deleted and Crossplane removes the buckets
+   and IAM roles it created. Terraform does not know about those, so they must go first.
+   Wait until `kubectl get managed` is empty.
+3. **`kubectl delete namespace monitoring`.** Prometheus and Alertmanager disks belong to
+   StatefulSets, whose PersistentVolumeClaims are not deleted with the pods. Deleting them while the
+   cluster (and its EBS CSI driver) still runs deletes the EBS volumes; after the cluster is gone,
+   they would be orphaned.
+4. **Delete the images in ECR.** The repository is not `force_delete`, so `terraform destroy` fails on
+   a repository that still holds images.
+5. **`terraform destroy`** in `infra/terraform`.
+6. **Check for leftovers** in AWS: EBS volumes, `cp-secureservice-*` buckets and roles, Elastic IPs,
+   load balancers.
+7. **Unset `AWS_CI_ROLE_ARN`** in app-source, so CI skips the AWS steps instead of failing against a
+   role that no longer exists. The Terraform state bucket was created by hand and is deleted separately.
 
 ---
 

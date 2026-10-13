@@ -30,6 +30,8 @@ configs:
     controller.diff.server.side: "true"
   rbac:
     policy.default: role:readonly
+    # The `org:team` groups apply once GitHub SSO (Dex) is configured. The lab used only the local
+    # admin account, whose initial secret was deleted after the password was changed.
     policy.csv: |
       g, momenckhouse-dev:platform-leads, role:admin
       p, role:developer, applications, get, secure-event-api/*, allow
