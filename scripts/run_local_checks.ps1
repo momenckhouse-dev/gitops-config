@@ -15,7 +15,7 @@ $Py = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Py)) {
     Write-Host "Creating .venv ..." -ForegroundColor Cyan
     python -m venv (Join-Path $Root ".venv")
-    & $Py -m pip install -q -r (Join-Path $Root "app-source\requirements-dev.txt")
+    & $Py -m pip install -q -r (Join-Path $Root "secure-event-api\requirements-dev.txt")
 }
 
 $results = [ordered]@{}
@@ -27,7 +27,7 @@ function Step([string]$Name, [scriptblock]$Body) {
 }
 function Have([string]$Tool) { [bool](Get-Command $Tool -ErrorAction SilentlyContinue) }
 
-Push-Location (Join-Path $Root "app-source")
+Push-Location (Join-Path $Root "secure-event-api")
 Step "app: ruff lint"   { & $Py -m ruff check . ; if ($LASTEXITCODE -eq 0) { & $Py -m ruff format --check . } }
 Step "app: unit tests"  { & $Py -m pytest -q -p no:cacheprovider }
 Pop-Location

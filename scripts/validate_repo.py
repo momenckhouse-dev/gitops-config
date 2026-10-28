@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-# Workspace folder holding app-source/, gitops-config/ and infra/ side by side.
+# Workspace folder holding secure-event-api/, gitops-config/ and infra/ side by side.
 ROOT = Path(__file__).resolve().parents[2]
 GITOPS = ROOT / "gitops-config"
 GITOPS_REPO_URL = "https://github.com/momenckhouse-dev/gitops-config.git"

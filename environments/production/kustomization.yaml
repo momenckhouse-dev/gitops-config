@@ -13,7 +13,7 @@ labels:
 
 images:
 - name: secure-event-api
-  newName: 071975552383.dkr.ecr.eu-central-1.amazonaws.com/secure-event-api
+  newName: 123456789012.dkr.ecr.eu-central-1.amazonaws.com/secure-event-api
   newTag: ef872a3e3dde
 
 patches:
