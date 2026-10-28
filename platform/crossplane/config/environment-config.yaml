@@ -1,12 +1,13 @@
 # Generated from Terraform: terraform output -raw crossplane_environment_config
+# Account ID and OIDC provider ID below are placeholders. Phase 3 overwrites this file.
 "apiVersion": "apiextensions.crossplane.io/v1beta1"
 "data":
-  "accountId": "071975552383"
-  "boundaryPolicyArn": "arn:aws:iam::071975552383:policy/secure-platform-secureservice-boundary"
+  "accountId": "123456789012"
+  "boundaryPolicyArn": "arn:aws:iam::123456789012:policy/secure-platform-secureservice-boundary"
   "bucketPrefix": "cp-secureservice-"
-  "crossplaneRoleArn": "arn:aws:iam::071975552383:role/secure-platform-crossplane-aws"
-  "oidcProvider": "oidc.eks.eu-central-1.amazonaws.com/id/ECB60D66E62A1F6BA1B155304C8C7266"
-  "oidcProviderArn": "arn:aws:iam::071975552383:oidc-provider/oidc.eks.eu-central-1.amazonaws.com/id/ECB60D66E62A1F6BA1B155304C8C7266"
+  "crossplaneRoleArn": "arn:aws:iam::123456789012:role/secure-platform-crossplane-aws"
+  "oidcProvider": "oidc.eks.eu-central-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"
+  "oidcProviderArn": "arn:aws:iam::123456789012:oidc-provider/oidc.eks.eu-central-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"
   "region": "eu-central-1"
 "kind": "EnvironmentConfig"
 "metadata":

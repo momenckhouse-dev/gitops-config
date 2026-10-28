@@ -17,7 +17,7 @@ validated offline. What actually happened, with evidence:
 
 | What | Evidence |
 |---|---|
-| CI → ECR → GitOps PR → Argo CD, end to end | app-source [PR #1](https://github.com/momenckhouse-dev/app-source/pull/1) → bot [PR #9](https://github.com/momenckhouse-dev/gitops-config/pull/9) deployed `ef872a3e3dde` to staging |
+| CI → ECR → GitOps PR → Argo CD, end to end | secure-event-api [PR #1](https://github.com/momenckhouse-dev/secure-event-api/pull/1) → bot [PR #9](https://github.com/momenckhouse-dev/gitops-config/pull/9) deployed `ef872a3e3dde` to staging |
 | Approval-gated production promotion | `promote.yml` paused at the `production` environment gate, approved, bot [PR #10](https://github.com/momenckhouse-dev/gitops-config/pull/10) merged by hand; 3 production pods rolled out |
 | Crossplane provisioning | `SecureService` claims created real S3 buckets and IRSA roles for staging and production; the app archived events to them |
 | Incident exercise and recovery | defective release [PR #5](https://github.com/momenckhouse-dev/gitops-config/pull/5), alerts fired, rollback [PR #6](https://github.com/momenckhouse-dev/gitops-config/pull/6) via `git revert`; [RCA INC-2026-001](ops/incidents/INC-2026-001-secure-event-api-oom.md) with measured timeline and impact |
@@ -54,7 +54,7 @@ evidence.
 
 ```mermaid
 flowchart LR
-  dev([Developer]) -->|push / PR| app[app-source repo]
+  dev([Developer]) -->|push / PR| app[secure-event-api repo]
   app -->|GitHub Actions| ci[CI: test, lint, build,<br/>Trivy, SBOM]
   ci -->|OIDC AssumeRole| sts[(AWS STS)]
   ci -->|push immutable tag| ecr[(Amazon ECR)]
@@ -90,7 +90,7 @@ flowchart LR
 sequenceDiagram
   autonumber
   participant D as Developer
-  participant A as app-source (GitHub Actions)
+  participant A as secure-event-api (GitHub Actions)
   participant E as ECR
   participant G as gitops-config
   participant R as Argo CD
@@ -155,7 +155,7 @@ Commands in this README assume all three are cloned side by side in one workspac
 
 ```bash
 mkdir secure-platform && cd secure-platform
-git clone https://github.com/momenckhouse-dev/app-source.git
+git clone https://github.com/momenckhouse-dev/secure-event-api.git
 git clone https://github.com/momenckhouse-dev/gitops-config.git
 git clone https://github.com/momenckhouse-dev/infra.git
 ```
@@ -163,7 +163,7 @@ git clone https://github.com/momenckhouse-dev/infra.git
 The split between application source and deployment config is deliberate (see section 5).
 
 ```
-app-source/                 # repo 1: application code + CI
+secure-event-api/           # repo 1: application code + CI
   src/secure_event_api/       Flask API, Prometheus metrics, S3 archiver, fault-injection hook
   tests/                      24 unit tests
   Dockerfile                  multi-stage, non-root uid 10001, gunicorn
@@ -237,19 +237,19 @@ fix is linked in the status table at the top.
 ### Phase 0: Prerequisites
 
 - AWS account with admin access for the first apply; AWS CLI v2.
-- GitHub organisation (or user) and three repos: `app-source`, `gitops-config`, `infra`.
+- GitHub organisation (or user) and three repos: `secure-event-api`, `gitops-config`, `infra`.
 - Tools: Terraform ≥ 1.6, kubectl, Helm 3, kustomize 5, Argo CD CLI, `gh`, Docker, Python 3.11+.
-- The repos contain the values of my deployment. To build your own, replace them everywhere:
+- The GitHub org and region below are from my deployment. To build your own, replace them everywhere:
 
   | Value in the repos | Replace with |
   |---|---|
   | `momenckhouse-dev` | your GitHub org/user |
-  | `071975552383` | your AWS account ID |
+  | `123456789012` | your AWS account ID (`123456789012` is the placeholder) |
   | `eu-central-1` | your region (if different) |
-  | the EKS OIDC provider ID in `environment-config.yaml` | written for you by Terraform output in Phase 3 |
+  | `EXAMPLED539D4633E53DE1B71EXAMPLE` | your EKS OIDC provider ID (`EXAMPLED539D4633E53DE1B71EXAMPLE` is the placeholder; Terraform output writes the real one in Phase 3) |
 
   ```bash
-  grep -rl "momenckhouse-dev\|071975552383\|eu-central-1" --exclude-dir=.venv .
+  grep -rl "momenckhouse-dev\|123456789012\|EXAMPLED539D4633E53DE1B71EXAMPLE\|eu-central-1" --exclude-dir=.venv .
   ```
 
 ### Phase 1: Terraform state and foundation (from your laptop, once)
@@ -274,10 +274,10 @@ the `infra` repo's workflow owns all changes: PRs get a read-only plan and merge
 
 ### Phase 2: Wire GitHub to AWS (OIDC) and the repos to each other
 
-1. **app-source** → Settings → Variables: `AWS_CI_ROLE_ARN` = `terraform output -raw github_ci_role_arn`.
+1. **secure-event-api** → Settings → Variables: `AWS_CI_ROLE_ARN` = `terraform output -raw github_ci_role_arn`.
 2. **infra** → Variables: `AWS_TF_PLAN_ROLE_ARN`, `AWS_TF_APPLY_ROLE_ARN`; Environment `production-infra` with required reviewers.
 3. Create a **GitHub App** ("gitops-bot") with *Contents: RW, Pull requests: RW* on `gitops-config`;
-   in app-source set `GITOPS_BOT_APP_ID` (variable) and `GITOPS_BOT_PRIVATE_KEY` (secret).
+   in secure-event-api set `GITOPS_BOT_APP_ID` (variable) and `GITOPS_BOT_PRIVATE_KEY` (secret).
 4. **gitops-config** → Environment `production` with required reviewers; branch protection on `main`:
    PR required, 1 CODEOWNERS approval, status check `validate`, allow auto-merge.
 
@@ -352,7 +352,7 @@ python gitops-config/ops/platform-doctor/platform_doctor.py --format markdown --
 
 ### Phase 6: First release
 
-Push `app-source` to `main`. Watch: tests → hadolint → build → Trivy gate → SBOM artifact → ECR push →
+Push `secure-event-api` to `main`. Watch: tests → hadolint → build → Trivy gate → SBOM artifact → ECR push →
 PR in `gitops-config` → `validate` passes → auto-merge → Argo CD syncs staging.
 
 ```bash
@@ -446,7 +446,7 @@ or blocks the next step:
 5. **`terraform destroy`** in `infra/terraform`.
 6. **Check for leftovers** in AWS: EBS volumes, `cp-secureservice-*` buckets and roles, Elastic IPs,
    load balancers.
-7. **Unset `AWS_CI_ROLE_ARN`** in app-source, so CI skips the AWS steps instead of failing against a
+7. **Unset `AWS_CI_ROLE_ARN`** in secure-event-api, so CI skips the AWS steps instead of failing against a
    role that no longer exists. The Terraform state bucket was created by hand and is deleted separately.
 
 ---
